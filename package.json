@@ -2,13 +2,11 @@
     "name": "secure-dashboard",
     "version": "1.0.0",
     "private": true,
-    "workspaces": {
-        "packages": [
-            "client",
-            "server",
-            "shared"
-        ]
-    },
+    "workspaces": [
+        "client",
+        "server",
+        "shared"
+    ],
     "scripts": {
         "build": "yarn workspaces run build"
     }
