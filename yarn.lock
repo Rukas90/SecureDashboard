@@ -4402,7 +4402,7 @@ redis-parser@^3.0.0:
   dependencies:
     redis-errors "^1.0.0"
 
-redis@^6.2.0:
+redis@^5.11.0:
   version "5.11.0"
   resolved "https://registry.yarnpkg.com/redis/-/redis-5.11.0.tgz#dccf8ff578118cdfe4f2b1e0b1d744024920ddf9"
   integrity sha512-YwXjATVDT+AuxcyfOwZn046aml9jMlQPvU1VXIlLDVAExe0u93aTfPYSeRgG4p9Q/Jlkj+LXJ1XEoFV+j2JKcQ==
