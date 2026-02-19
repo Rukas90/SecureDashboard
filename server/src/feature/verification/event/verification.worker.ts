@@ -1,4 +1,4 @@
-import { redis } from "@base/app"
+import { eventsRedis } from "@base/redis"
 import { VERIFICATION_QUEUE } from "./verification.queue"
 import { Job, Worker } from "bullmq"
 import { VerificationJob } from "./verification.type"
@@ -38,7 +38,7 @@ const processJob = async <TDispatch extends Dispatch>(job: Job) => {
 
 const createWorker = () => {
   return new Worker(VERIFICATION_QUEUE, processJob, {
-    connection: redis,
+    connection: eventsRedis,
     concurrency: 5,
   })
 }

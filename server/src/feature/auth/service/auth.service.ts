@@ -1,4 +1,5 @@
-import { database, redis } from "@base/app"
+import { database } from "@base/app"
+import { appRedis } from "@base/redis"
 import { sessionService, SessionContext } from "@features/session"
 import { User, UserSession } from "@prisma/client"
 import { type AuthUser } from "@project/shared"
@@ -95,12 +96,9 @@ const authService = {
     await refreshService.revokeTokenFamily(familyId)
     const session = await sessionService.revokeSession(familyId)
 
-    await redis.set(
-      `revoked_session:${session.id}`,
-      "1",
-      "EX",
-      Math.ceil(jwtService.constants.ACCESS_TOKEN_EXPIRY_MS / 1000),
-    )
+    await appRedis.set(`revoked_session:${session.id}`, "1", {
+      ex: Math.ceil(jwtService.constants.ACCESS_TOKEN_EXPIRY_MS / 1000),
+    })
   },
 }
 export default authService

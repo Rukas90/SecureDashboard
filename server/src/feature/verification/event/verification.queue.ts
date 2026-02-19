@@ -1,12 +1,12 @@
 import { Queue } from "bullmq"
-import { redis } from "@base/app"
+import { eventsRedis } from "@base/redis"
 import { VerificationJob } from "./verification.type"
 import { Dispatch } from "@shared/dispatch"
 
 export const VERIFICATION_QUEUE = "establishVerification"
 
 const verificationQueue = new Queue(VERIFICATION_QUEUE, {
-  connection: redis,
+  connection: eventsRedis,
 })
 
 export const establishVerification = async <TDispatch extends Dispatch>(

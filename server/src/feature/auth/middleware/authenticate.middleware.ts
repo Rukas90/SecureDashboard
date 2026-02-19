@@ -3,7 +3,7 @@ import { AuthUnauthenticatedError } from "../error/auth.error"
 import { asyncRoute, AuthSession } from "@shared/util"
 import { jwtService } from "@shared/token"
 import { ACCESS_TOKEN_NAME } from "../util/auth.cookie"
-import { redis } from "@base/app"
+import { appRedis } from "@base/redis"
 
 export const authenticateRequest = asyncRoute(
   async (req: Request, _: Response, next: NextFunction) => {
@@ -26,7 +26,7 @@ export const authenticateRequest = asyncRoute(
       return next(new AuthUnauthenticatedError())
     }
     if (payload.sid) {
-      const revoked = await redis.exists(`revoked_session:${payload.sid}`)
+      const revoked = await appRedis.exists(`revoked_session:${payload.sid}`)
 
       if (revoked === 1) {
         return next(new AuthUnauthenticatedError())

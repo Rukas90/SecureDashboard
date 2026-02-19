@@ -1,4 +1,4 @@
-import { redis, server } from "@base/app"
+import { server } from "@base/app"
 import "dotenv/config"
 import dotenv from "dotenv"
 import { endpointErrorHandler } from "@shared/middleware"
