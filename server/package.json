@@ -7,7 +7,7 @@
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "tsx src/main.ts",
+    "dev": "tsx --env-file=.env src/main.ts",
     "build": "tsup src/main.ts --format esm --out-dir dist"
   },
   "keywords": [],

@@ -16,11 +16,6 @@ import {
 import { initializeCsrf } from "./feature/csrf"
 import { CSRF_HEADER_NAME } from "@project/shared"
 
-if (config().isDevelopment) {
-  const dotenv = await import("dotenv")
-  dotenv.config()
-}
-
 try {
   server.initialize()
 } catch {
