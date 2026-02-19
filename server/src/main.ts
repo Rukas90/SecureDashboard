@@ -1,5 +1,4 @@
 import { server } from "@base/app"
-import "dotenv/config"
 import { endpointErrorHandler } from "@shared/middleware"
 import { useScalarDocs } from "./shared/docs/scalar"
 import { config } from "@base/app"
