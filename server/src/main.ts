@@ -1,6 +1,5 @@
 import { server } from "@base/app"
 import "dotenv/config"
-import dotenv from "dotenv"
 import { endpointErrorHandler } from "@shared/middleware"
 import { useScalarDocs } from "./shared/docs/scalar"
 import { config } from "@base/app"
@@ -18,7 +17,10 @@ import {
 import { initializeCsrf } from "./feature/csrf"
 import { CSRF_HEADER_NAME } from "@project/shared"
 
-dotenv.config()
+if (config().isDevelopment) {
+  const dotenv = await import("dotenv")
+  dotenv.config()
+}
 
 try {
   server.initialize()

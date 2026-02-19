@@ -43,6 +43,7 @@
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "tsup": "^8.5.1",
+    "typescript": "^5.9.3",
     "ua-parser-js": "^2.0.8",
     "zod": "^4.3.5"
   },
