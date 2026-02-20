@@ -10,45 +10,37 @@ const LOG_LEVELS = {
 
 export type LogLevel = keyof typeof LOG_LEVELS
 
-const colors = {
-  debug: chalk.gray,
-  info: chalk.blue,
-  warn: chalk.yellow,
-  error: chalk.red,
-  success: chalk.green,
-}
-
 const logger = {
   debug: (...data: any[]) => {
     if (canLog("debug")) {
-      console.log(colors.info("[DEBUG]"), ...data)
+      console.log(chalk.gray("[DEBUG]"), ...data)
     }
   },
   info: (...data: any[]) => {
     if (canLog("info")) {
-      console.log(colors.info("[INFO]"), ...data)
+      console.log(chalk.blue("[INFO]"), ...data)
     }
   },
 
   warn: (...data: any[]) => {
     if (canLog("warn")) {
-      console.warn(colors.warn("[WARN]"), ...data)
+      console.warn(chalk.yellow("[WARN]"), ...data)
     }
   },
 
   error: (...data: any[]) => {
     if (canLog("error")) {
-      console.error(colors.error("[ERROR]"), ...data)
+      console.error(chalk.red("[ERROR]"), ...data)
     }
   },
   success: (...data: any[]) => {
     if (canLog("info")) {
-      console.log(colors.success("[SUCCESS]"), ...data)
+      console.log(chalk.green("[SUCCESS]"), ...data)
     }
   },
   fail: (...data: any[]) => {
     if (canLog("error")) {
-      console.error(colors.error("[FAIL]"), ...data)
+      console.error(chalk.red("[FAIL]"), ...data)
     }
   },
 }

@@ -1,13 +1,13 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "esnext",
+    "lib": ["es5", "es6", "es7"],
+    "target": "es2017",
+    "module": "es2022",
     "moduleResolution": "bundler",
     "outDir": "dist",
     "baseUrl": ".",
     "types": ["node"],
     "paths": {
-      "@prisma/client": ["./prisma/generated/client.ts"],
       "@base/*": ["src/*"],
       "@shared/*": ["src/shared/*"],
       "@lib/*": ["src/lib/*"],

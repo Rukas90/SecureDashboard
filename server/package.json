@@ -8,7 +8,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "tsx --env-file=.env src/main.ts",
-    "build": "yarn prisma generate && tsup src/main.ts --format esm --out-dir dist --external @prisma/client"
+    "build": "yarn prisma generate && tsup",
+    "start": "node --env-file=.env dist/main.js"
   },
   "keywords": [],
   "author": "",

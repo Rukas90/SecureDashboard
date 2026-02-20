@@ -5,14 +5,16 @@ import { pathToFileURL } from "url"
 import { Dispatch, dispatchRegistry } from "../dispatch"
 import chalk from "chalk"
 import logger from "../logger"
+import { config } from "@base/app"
 
 const DEFAULT_OPTIONS: LoadOptions = {
-  pattern: "**/*.dispatch.ts",
+  pattern: "**/*.dispatch",
 }
 export const registerDispatches = async (
   options: LoadOptions = DEFAULT_OPTIONS,
 ) => {
-  const files = await glob(options.pattern, {
+  const pattern = options.pattern + (config().isProduction ? ".js" : ".ts")
+  const files = await glob(pattern, {
     cwd: options.path ?? FeaturesDirectory,
     absolute: true,
   })

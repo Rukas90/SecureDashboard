@@ -5,17 +5,19 @@ import { FeaturesDirectory, LoadOptions } from "./loader.config"
 import { pathToFileURL } from "url"
 import chalk from "chalk"
 import logger from "../logger"
+import { config } from "@base/app"
 
 type RouteRegistrar = (app: Express) => void
 
 const DEFAULT_OPTIONS: LoadOptions = {
-  pattern: "**/*.controller.ts",
+  pattern: "**/*.controller",
 }
 export const registerRoutes = async (
   app: Express,
   options: LoadOptions = DEFAULT_OPTIONS,
 ) => {
-  const files = await glob(options.pattern, {
+  const pattern = options.pattern + (config().isProduction ? ".js" : ".ts")
+  const files = await glob(pattern, {
     cwd: options.path ?? FeaturesDirectory,
     absolute: true,
   })
