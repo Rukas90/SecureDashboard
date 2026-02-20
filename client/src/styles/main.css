@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@import "flag-icons/css/flag-icons.min.css";
 
 *, *:before, *:after {
   font-family: Inter, ui-sans-serif, "system-ui", -apple-system, "system-ui", "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "sans-serif", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
@@ -23,4 +22,24 @@ a {
 :root {
   --base-color: #121212;
   --highlight-color: #323232;
+}
+.fib, .fi {
+  background-size: contain;
+  background-position: 50%;
+  background-repeat: no-repeat;
+}
+.fi {
+  position: relative;
+  display: inline-block;
+  width: 1.333333em;
+  line-height: 1em;
+}
+.fi:before {
+  content: " ";
+}
+.fi-lt {
+  background-image: url("../assets/icons/flags/lt.svg");
+}
+.fi-us {
+  background-image: url("../assets/icons/flags/us.svg");
 }
