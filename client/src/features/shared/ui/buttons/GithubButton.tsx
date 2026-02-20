@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next"
 import PlainButton from "./PlainButton"
 import { IconGithub } from "../icons"
+import { API_URL } from "@src/lib"
 
 const GithubButton = () => {
   const { t } = useTranslation()
@@ -12,8 +13,7 @@ const GithubButton = () => {
       extendWidth
       className="text-neutral-900 bg-stone-100"
       action={() => {
-        window.location.href =
-          "http://www.127.0.0.1.sslip.io:3000/v1/oauth/github"
+        window.location.href = new URL("/v1/oauth/github", API_URL).href
       }}
     />
   )

@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next"
 import PlainButton from "./PlainButton"
 import { IconGoogle } from "../icons"
+import { API_URL } from "@src/lib"
 
 const GoogleButton = () => {
   const { t } = useTranslation()
@@ -12,8 +13,7 @@ const GoogleButton = () => {
       extendWidth
       className="text-neutral-900 bg-stone-100"
       action={() => {
-        window.location.href =
-          "http://www.127.0.0.1.sslip.io:3000/v1/oauth/google"
+        window.location.href = new URL("/v1/oauth/google", API_URL).href
       }}
     />
   )
