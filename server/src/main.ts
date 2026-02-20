@@ -52,6 +52,7 @@ app.use(
 
 app.use(initializeCsrf)
 
+app.get("/", (_, res) => res.json("Running..."))
 app.get("/ping", (_, res) => res.json("pong"))
 
 const dirname = import.meta.dirname
