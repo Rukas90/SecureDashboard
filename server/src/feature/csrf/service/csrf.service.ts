@@ -1,12 +1,11 @@
+import { env } from "@base/app"
 import crypto from "crypto"
-
-const CSRF_SECRET = process.env.CSRF_SECRET!
 
 const csrfService = {
   generateCsrfToken: () => {
     const token = crypto.randomBytes(32).toString("hex")
     const signature = crypto
-      .createHmac("sha256", CSRF_SECRET)
+      .createHmac("sha256", env.get.CSRF_SECRET)
       .update(token)
       .digest("hex")
     return `${token}.${signature}`
@@ -18,7 +17,7 @@ const csrfService = {
       return false
     }
     const expectedSignature = crypto
-      .createHmac("sha256", CSRF_SECRET)
+      .createHmac("sha256", env.get.CSRF_SECRET)
       .update(value)
       .digest("hex")
 

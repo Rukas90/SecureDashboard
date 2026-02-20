@@ -4,9 +4,10 @@ import { UnexpectedError } from "@shared/errors"
 import { User } from "@prisma/client"
 import { AuthUser, Result, Scope } from "@project/shared"
 import ms from "ms"
+import { env } from "@base/app"
 
 const ENCODER = new TextEncoder()
-const SECRET = ENCODER.encode(process.env.JWT_SECRET!)
+const SECRET = ENCODER.encode(env.get.JWT_SECRET)
 
 export type AccessTokenClaims = {
   scope: Scope[]
@@ -47,8 +48,8 @@ const jwtService = {
   ): Promise<Result<AccessTokenPayload, Error>> => {
     try {
       const result = await jwtVerify<AccessTokenPayload>(token, SECRET, {
-        issuer: process.env.API_URL!,
-        audience: process.env.CLIENT_URL!,
+        issuer: env.get.API_URL,
+        audience: env.get.CLIENT_URL,
       })
       return Result.success(result.payload)
     } catch (error) {
@@ -73,8 +74,8 @@ const generateAccessToken = async (
   const expiresAtMs = Date.now() + expirationMs
 
   const accessToken = await new SignJWT(claims)
-    .setIssuer(process.env.API_URL!)
-    .setAudience(process.env.CLIENT_URL!)
+    .setIssuer(env.get.API_URL)
+    .setAudience(env.get.CLIENT_URL)
     .setSubject(user.id)
     .setIssuedAt()
     .setExpirationTime(Math.floor(expiresAtMs / 1000))

@@ -1,4 +1,4 @@
-import { database } from "@base/app"
+import { database, env } from "@base/app"
 import { Result } from "@project/shared"
 import { hashing } from "@shared/security"
 import { RefreshToken, User } from "@prisma/client"
@@ -48,10 +48,7 @@ const refreshService = {
   generateRefreshFamilyId: () => crypto.randomUUID(),
 
   generateLookupHash: async (token: string): Promise<string> => {
-    return await hashing.hmac.hash(
-      token,
-      process.env.REFRESH_TOKEN_LOOKUP_SECRET!,
-    )
+    return await hashing.hmac.hash(token, env.get.REFRESH_TOKEN_LOOKUP_SECRET)
   },
   validateRefreshToken: async (
     token?: string,

@@ -2860,6 +2860,11 @@ confbox@^0.2.2:
   resolved "https://registry.npmjs.org/confbox/-/confbox-0.2.2.tgz"
   integrity sha512-1NB+BKqhtNipMsov4xI/NnhCKp9XG9NamYp5PVm9klAT0fsrNPjaFICsCFhNhwZJKNh7zB/3q8qXz0E9oaMNtQ==
 
+connect-redis@^9.0.0:
+  version "9.0.0"
+  resolved "https://registry.yarnpkg.com/connect-redis/-/connect-redis-9.0.0.tgz#d3c68451a466d007c4be9fae8b652e0f60d9b769"
+  integrity sha512-QwzyvUePTMvEzG1hy45gZYw3X3YHrjmEdSkayURlcZft7hqadQ3X39wYkmCqblK2rGlw+XItELYt6GnyG6DEIQ==
+
 consola@^3.2.3, consola@^3.4.0:
   version "3.4.2"
   resolved "https://registry.npmjs.org/consola/-/consola-3.4.2.tgz"

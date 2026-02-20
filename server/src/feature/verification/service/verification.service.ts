@@ -1,4 +1,4 @@
-import { database } from "@base/app"
+import { database, env } from "@base/app"
 import { Result, VoidResult } from "@project/shared"
 import {
   CipherGCMOptions,
@@ -40,7 +40,7 @@ const DEFAULT_TOKEN_CODE_LENGTH = 32
 const DEFAULT_CODE_EXPIRATION_MS = ms("15m")
 
 const EncryptionOptions: CipherGCMOptions = {
-  key: Buffer.from(process.env.PAYLOAD_SECRET_AES_256_MASTER_KEY!, "hex"),
+  key: Buffer.from(env.get.PAYLOAD_SECRET_AES_256_MASTER_KEY, "hex"),
   algorithm: "aes-256-gcm",
 }
 
@@ -237,7 +237,7 @@ const getVerification = async (code: string) => {
 }
 
 const createLookupHash = async (code: string) => {
-  return await hashing.hmac.hash(code, process.env.VERIFICATION_LOOKUP_SECRET!)
+  return await hashing.hmac.hash(code, env.get.VERIFICATION_LOOKUP_SECRET)
 }
 const removeVerification = async (id: string) => {
   await database.client.verification.delete({

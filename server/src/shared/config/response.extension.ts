@@ -1,4 +1,4 @@
-import { config } from "@base/app"
+import { config, env } from "@base/app"
 import * as express from "express"
 import { type Response } from "express-serve-static-core"
 import {
@@ -36,7 +36,7 @@ export const extendResponse = () => {
       .status(details.status)
       .type("application/problem+json")
       .json({
-        type: `urn:${process.env["APP_NAME"]}:problem:${details.type}`,
+        type: `urn:${env.get("APP_NAME")}:problem:${details.type}`,
         title: details.title,
         status: details.status,
         detail: details.detail,

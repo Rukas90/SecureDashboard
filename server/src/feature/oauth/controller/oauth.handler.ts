@@ -9,6 +9,7 @@ import {
 } from "../error/oauth.error"
 import { authService, setAuthSessionCookies } from "@features/auth"
 import { extractSessionContext } from "@features/session"
+import { env } from "@base/app"
 
 export const initiateOAuth = asyncRoute(
   async (req: Request, res: Response, _: NextFunction) => {
@@ -52,7 +53,7 @@ export const handleOAuthCallback = asyncRoute(
       )
     setAuthSessionCookies(res, accessToken, refreshToken, authUser)
 
-    const url = new URL(process.env.CLIENT_ORIGIN!)
+    const url = new URL(env.get.CLIENT_ORIGIN)
     url.pathname = "oauth/callback"
 
     generateCsrfCookie(res)

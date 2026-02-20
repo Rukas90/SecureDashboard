@@ -3,16 +3,17 @@ import { MailOptions } from "./mailer.type"
 import type { Transporter } from "nodemailer"
 import { VoidResult } from "@project/shared"
 import logger from "../logger"
+import { env } from "@base/app"
 
 let transporter: Transporter | null = null
 
 export const getTransporter = () => {
   if (!transporter) {
     transporter = nodemailer.createTransport({
-      service: process.env.SENDER_MAIL_SERVICE,
+      service: env.get.SENDER_MAIL_SERVICE,
       auth: {
-        user: process.env.SENDER_EMAIL_ADDRESS,
-        pass: process.env.SENDER_EMAIL_PASSWORD,
+        user: env.get.SENDER_EMAIL_ADDRESS,
+        pass: env.get.SENDER_EMAIL_PASSWORD,
       },
     })
   }
@@ -23,7 +24,7 @@ export const send = async (
 ): Promise<VoidResult<Error>> => {
   try {
     await getTransporter().sendMail({
-      from: process.env.SENDER_EMAIL_ADDRESS,
+      from: env.get.SENDER_EMAIL_ADDRESS,
       to: options.recipient,
       subject: options.subject,
       text: options.text,

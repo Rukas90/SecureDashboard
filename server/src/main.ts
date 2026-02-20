@@ -1,4 +1,4 @@
-import { server } from "@base/app"
+import { env, server } from "@base/app"
 import { endpointErrorHandler } from "@shared/middleware"
 import { useScalarDocs } from "./shared/docs/scalar"
 import { config } from "@base/app"
@@ -15,6 +15,8 @@ import {
 } from "./shared/loader"
 import { initializeCsrf } from "./feature/csrf"
 import { CSRF_HEADER_NAME } from "@project/shared"
+import { appRedis } from "./redis"
+import { RedisStore } from "connect-redis"
 
 try {
   server.initialize()
@@ -24,13 +26,13 @@ try {
 }
 
 const app = server.app
-const port = Number.parseInt(process.env.SERVER_PORT ?? "3000", 10)
+const port = env.getOr("SERVER_PORT", 3000)
 
-app.use(cookieParser(process.env.COOKIE_SECRET))
+app.use(cookieParser(env.get.COOKIE_SECRET))
 app.use(bodyParser.urlencoded({ extended: true }))
 app.use(
   cors({
-    origin: ["http://www.127.0.0.1.sslip.io:5173", "http://localhost:5173"],
+    origin: env.getArray("CORS_ORIGINS"),
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
     allowedHeaders: ["Content-Type", CSRF_HEADER_NAME],
@@ -38,7 +40,8 @@ app.use(
 )
 app.use(
   session({
-    secret: process.env.SESSION_SECRET!,
+    store: new RedisStore({ client: appRedis }),
+    secret: env.get.SESSION_SECRET!,
     resave: false,
     saveUninitialized: false,
     cookie: {

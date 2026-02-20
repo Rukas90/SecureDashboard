@@ -1,3 +1,4 @@
+import { env } from "@base/app"
 import chalk from "chalk"
 
 const LOG_LEVELS = {
@@ -45,8 +46,7 @@ const logger = {
   },
 }
 
-const getLogLevel = (): LogLevel =>
-  (process.env.LOG_LEVEL as LogLevel) ?? "info"
+const getLogLevel = (): LogLevel => env.getOr("LOG_LEVEL", "info") as LogLevel
 
 const canLog = (level: LogLevel): boolean => {
   return LOG_LEVELS[level] >= LOG_LEVELS[getLogLevel()]

@@ -4,9 +4,14 @@ import {
   CaptchaInvalidTokenError,
 } from "../error/captcha.error"
 import logger from "@base/shared/logger"
+import { env } from "@base/app"
 
 const VERIFY_URL = "https://hcaptcha.com/siteverify"
 
+interface HCaptchaResponse {
+  success: boolean
+  "error-codes"?: string[]
+}
 const captchaService = {
   validateToken: async (
     token: string,
@@ -19,12 +24,12 @@ const captchaService = {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({
-          secret: process.env.CAPTCHA_SECRET!,
+          secret: env.get.CAPTCHA_SECRET,
           response: token,
           remoteip,
         }),
       })
-      const result = await response.json()
+      const result = (await response.json()) as HCaptchaResponse
 
       if (result.success) {
         return VoidResult.ok()

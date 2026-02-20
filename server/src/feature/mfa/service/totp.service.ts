@@ -1,7 +1,7 @@
 import { MfaEnrollment, User } from "@prisma/client"
 import mfaService from "./mfa.service"
 import speakeasy, { GeneratedSecret } from "speakeasy"
-import { config, database } from "@base/app"
+import { config, database, env } from "@base/app"
 import { CipherGCMOptions, decryptGCM, encryptGCM } from "@shared/security"
 import QRCode from "qrcode"
 import { Result, TotpData, VoidResult } from "@project/shared"
@@ -23,7 +23,7 @@ type TotpCredentials = {
   secret_enc: string
 }
 const EncryptionOptions: CipherGCMOptions = {
-  key: Buffer.from(process.env.TOTP_SECRET_AES_256_MASTER_KEY!, "base64"),
+  key: Buffer.from(env.get.TOTP_SECRET_AES_256_MASTER_KEY, "base64"),
   algorithm: "aes-256-gcm",
 }
 

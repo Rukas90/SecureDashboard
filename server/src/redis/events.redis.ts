@@ -1,8 +1,9 @@
+import { env } from "@base/app"
 import logger from "@shared/logger"
 import chalk from "chalk"
 import IORedis from "ioredis"
 
-const redis = new IORedis(process.env.REDIS_CLOUD_URL!, {
+const redis = new IORedis(env.get.REDIS_CLOUD_URL, {
   maxRetriesPerRequest: null,
 })
 

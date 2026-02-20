@@ -1,3 +1,5 @@
+import env from "./env"
+
 type NodeEnv = "production" | "development"
 
 class AppConfig {
@@ -8,19 +10,19 @@ class AppConfig {
   isDevelopment: boolean
 
   constructor() {
-    this.name = process.env.APP_NAME ?? "MyApp"
-    this.env = process.env.NODE_ENV as NodeEnv
+    this.name = env.getOr("APP_NAME", "MyApp")
+    this.env = env.get.NODE_ENV as NodeEnv
 
-    const apiOrigin = process.env.API_ORIGIN
-    const clientOrigin = process.env.CLIENT_ORIGIN
+    const apiOrigin = env.get.API_ORIGIN
+    const clientOrigin = env.get.CLIENT_ORIGIN
 
     if (!apiOrigin || !clientOrigin) {
       throw new Error("API_ORIGIN and/or CLIENT_ORIGIN is not defined.")
     }
     this.origin = { api: apiOrigin, client: clientOrigin }
 
-    this.isProduction = process.env.NODE_ENV === "production"
-    this.isDevelopment = process.env.NODE_ENV === "development"
+    this.isProduction = env.get.NODE_ENV === "production"
+    this.isDevelopment = env.get.NODE_ENV === "development"
   }
   /**
    * Builds an absolute URL from a path and a target origin.

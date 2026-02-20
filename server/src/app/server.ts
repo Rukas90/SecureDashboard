@@ -4,6 +4,7 @@ import http from "http"
 import { extendResponse } from "@shared/config"
 import { Mailer } from "@shared/mailer"
 import logger from "@shared/logger"
+import env from "./env"
 
 class Server {
   #app: Express
@@ -61,7 +62,7 @@ class Server {
   }
   async #connectDatabase(): Promise<void> {
     try {
-      await database.connect(process.env["DATABASE_URL"]!)
+      await database.connect(env.get.DATABASE_URL)
       logger.info("Database connected")
     } catch (error) {
       logger.error("Failed to connect to database:", error)
