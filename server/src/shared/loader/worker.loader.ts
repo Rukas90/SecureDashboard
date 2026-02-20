@@ -1,21 +1,23 @@
 import { glob } from "glob"
 import path from "path"
-import { FeaturesDirectory, LoadOptions } from "./loader.config"
+import { FeaturesDirectory, FileExtension, LoadOptions } from "./loader.config"
 import { pathToFileURL } from "url"
 import { Worker } from "bullmq"
 import chalk from "chalk"
 import logger from "../logger"
-import { config } from "@base/app"
 
 type WorkerFactory = () => Worker<any, void, string>
 
 const DEFAULT_OPTIONS: LoadOptions = {
   pattern: "**/*.worker",
 }
-export const startWorkers = async (options: LoadOptions = DEFAULT_OPTIONS) => {
-  const pattern = options.pattern + (config().isProduction ? ".js" : ".ts")
+export const startWorkers = async (
+  dirname: string,
+  options: LoadOptions = DEFAULT_OPTIONS,
+) => {
+  const pattern = options.pattern + FileExtension(dirname)
   const files = await glob(pattern, {
-    cwd: options.path ?? FeaturesDirectory,
+    cwd: options.path ?? FeaturesDirectory(dirname),
     absolute: true,
   })
   for (const file of files) {

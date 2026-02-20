@@ -1,21 +1,21 @@
 import { glob } from "glob"
 import path from "path"
-import { FeaturesDirectory, LoadOptions } from "./loader.config"
+import { FeaturesDirectory, FileExtension, LoadOptions } from "./loader.config"
 import { pathToFileURL } from "url"
 import { Dispatch, dispatchRegistry } from "../dispatch"
 import chalk from "chalk"
 import logger from "../logger"
-import { config } from "@base/app"
 
 const DEFAULT_OPTIONS: LoadOptions = {
   pattern: "**/*.dispatch",
 }
 export const registerDispatches = async (
+  dirname: string,
   options: LoadOptions = DEFAULT_OPTIONS,
 ) => {
-  const pattern = options.pattern + (config().isProduction ? ".js" : ".ts")
+  const pattern = options.pattern + FileExtension(dirname)
   const files = await glob(pattern, {
-    cwd: options.path ?? FeaturesDirectory,
+    cwd: options.path ?? FeaturesDirectory(dirname),
     absolute: true,
   })
   for (const file of files) {
