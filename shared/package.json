@@ -11,9 +11,10 @@
         }
     },
     "scripts": {
-        "build": "tsc"
+        "build": "tsup src/index.ts --format esm --out-dir dist --dts"
     },
     "dependencies": {
+        "tsup": "^8.5.1",
         "zod": "^4.3.5"
     },
     "devDependencies": {
