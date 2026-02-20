@@ -53,6 +53,8 @@ async function main() {
 
   app.use(initializeCsrf)
 
+  app.get("/ping", (_, res) => res.json("pong"))
+
   await registerRoutes(app)
   await startWorkers()
   await registerDispatches()
