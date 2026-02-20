@@ -1,5 +1,4 @@
 {
-    "rootDirectory": "client",
     "buildCommand": "yarn workspace @project/shared build && yarn workspace client build",
     "outputDirectory": "dist",
     "installCommand": "yarn install",
