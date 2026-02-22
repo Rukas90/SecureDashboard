@@ -1,13 +1,15 @@
 import { CSRF_COOKIE_NAME } from "@project/shared"
-import { Response } from "express"
+import { CookieOptions, Response } from "express"
 import csrfService from "../service/csrf.service"
 import { config } from "@base/app"
 
-export const CSRF_COOKIE_OPTIONS = {
-  sameSite: "lax",
+export const CSRF_COOKIE_OPTIONS: CookieOptions = {
   httpOnly: false,
   secure: config().isProduction,
-} as const
+  sameSite: "lax",
+  path: "/",
+  domain: config().domain,
+}
 
 export const generateCsrfCookie = (res: Response) => {
   const token = csrfService.generateCsrfToken()

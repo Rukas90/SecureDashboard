@@ -6,6 +6,7 @@ class AppConfig {
   name: string
   env: NodeEnv
   origin: { api: string; client: string }
+  domain: string | undefined
   isProduction: boolean
   isDevelopment: boolean
 
@@ -20,6 +21,8 @@ class AppConfig {
       throw new Error("API_ORIGIN and/or CLIENT_ORIGIN is not defined.")
     }
     this.origin = { api: apiOrigin, client: clientOrigin }
+
+    this.domain = env.getOptional("DOMAIN")
 
     this.isProduction = env.get.NODE_ENV === "production"
     this.isDevelopment = env.get.NODE_ENV === "development"

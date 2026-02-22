@@ -37,6 +37,9 @@ class Environment {
     }
     return value as T
   }
+  getOptional(key: string): string | undefined {
+    return process.env[key]
+  }
   getArray(key: string): string[] {
     return process.env[key]?.split(",") ?? []
   }
