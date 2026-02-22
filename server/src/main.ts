@@ -39,6 +39,8 @@ app.use(
   }),
 )
 
+app.set("trust proxy", 1)
+
 const sessionExpiryMs = ms("15m")
 
 let redisStore = new RedisStore({
@@ -55,7 +57,7 @@ app.use(
     cookie: {
       httpOnly: true,
       secure: config().isProduction,
-      sameSite: "lax",
+      sameSite: "none",
       maxAge: sessionExpiryMs,
     },
   }),
