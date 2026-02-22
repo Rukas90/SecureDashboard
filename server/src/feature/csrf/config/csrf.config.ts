@@ -4,7 +4,7 @@ import csrfService from "../service/csrf.service"
 import { config } from "@base/app"
 
 export const CSRF_COOKIE_OPTIONS = {
-  sameSite: "lax" as const,
+  sameSite: "none",
   httpOnly: false,
   secure: config().isProduction,
 } as const
