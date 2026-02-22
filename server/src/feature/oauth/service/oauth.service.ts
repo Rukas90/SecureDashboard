@@ -28,6 +28,13 @@ export type OAuthUserInfo = {
   username?: string
 }
 
+interface OAuthRes {
+  access_token: string
+  refresh_token: string
+  expires_in: number
+  scope: string
+}
+
 const oauthService = {
   getAuthorizationUrl: (
     provider: OAuthProvider,
@@ -99,7 +106,7 @@ const oauthService = {
         )
         return Result.error(new OAuthFailedToAuthenticateError(provider))
       }
-      const data = await response.json()
+      const data = (await response.json()) as OAuthRes
 
       return Result.success({
         accessToken: data.access_token,

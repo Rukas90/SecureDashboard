@@ -15,7 +15,7 @@ import {
 } from "./shared/loader"
 import { initializeCsrf } from "./feature/csrf"
 import { CSRF_HEADER_NAME } from "@project/shared"
-import { appRedis } from "./redis"
+import { sessionRedis } from "./redis"
 import { RedisStore } from "connect-redis"
 
 try {
@@ -38,9 +38,17 @@ app.use(
     allowedHeaders: ["Content-Type", CSRF_HEADER_NAME],
   }),
 )
+
+const sessionExpiryMs = ms("15m")
+
+let redisStore = new RedisStore({
+  client: sessionRedis,
+  prefix: "sess:",
+  ttl: sessionExpiryMs / 1000,
+})
 app.use(
   session({
-    store: new RedisStore({ client: appRedis }),
+    store: redisStore,
     secret: env.get.SESSION_SECRET!,
     resave: false,
     saveUninitialized: false,
@@ -48,7 +56,7 @@ app.use(
       httpOnly: true,
       secure: config().isProduction,
       sameSite: "lax",
-      maxAge: ms("15m"),
+      maxAge: sessionExpiryMs,
     },
   }),
 )

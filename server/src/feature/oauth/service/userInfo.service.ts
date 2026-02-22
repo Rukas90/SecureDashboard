@@ -13,6 +13,18 @@ export type GithubEmail = {
   visibility: string
 }
 
+interface GoogleUserInfoRes {
+  id: string | number
+  email: string
+  name: string
+  verified_email?: boolean
+}
+interface GithubUserInfoRes {
+  id: string | number
+  name: string
+  login: string
+}
+
 const userInfoService = {
   fetchUserInfo: async (provider: OAuthProvider, accessToken: string) => {
     switch (provider) {
@@ -23,7 +35,6 @@ const userInfoService = {
     }
   },
 }
-
 const getGoogleUserInfo = async (
   accessToken: string,
 ): Promise<Result<OAuthUserInfo, OAuthUserInfoFetchFailedError>> => {
@@ -37,7 +48,7 @@ const getGoogleUserInfo = async (
   if (!response.ok) {
     return Result.error(new OAuthUserInfoFetchFailedError("google"))
   }
-  const data = await response.json()
+  const data = (await response.json()) as GoogleUserInfoRes
 
   return Result.success({
     providerId: data.id.toString(),
@@ -70,7 +81,7 @@ const getGithubUserInfo = async (
   if (!address.ok) {
     return Result.error(address.error)
   }
-  const data = await response.json()
+  const data = (await response.json()) as GithubUserInfoRes
 
   return Result.success({
     providerId: data.id.toString(),
@@ -85,9 +96,9 @@ const getGithubAccountAddress = async (
 ): Promise<Result<GithubEmail, OAuthEmailNotProvidedError>> => {
   try {
     const config = oauthConfig["github"]
-    const emails: GithubEmail[] = await fetch(config.emailsUrl, {
+    const emails: GithubEmail[] = (await fetch(config.emailsUrl, {
       headers: { Authorization: `Bearer ${accessToken}` },
-    }).then((r) => r.json())
+    }).then((r) => r.json())) as GithubEmail[]
 
     let address =
       emails.find((e) => e.primary && e.verified) ??

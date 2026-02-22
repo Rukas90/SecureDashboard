@@ -32,7 +32,7 @@ export const handleOAuthCallback = asyncRoute(
     const session = validateCallbackRequest(req)
 
     if (!session.ok) {
-      return Result.error(session.error)
+      return next(session.error)
     }
     const oauth = await oauthService.processOAuthRequest(session.data)
 
