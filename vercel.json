@@ -1,6 +1,6 @@
 {
     "buildCommand": "yarn workspace @project/shared build && yarn workspace client build",
-    "outputDirectory": "dist",
+    "outputDirectory": "client/dist",
     "installCommand": "yarn install",
     "framework": null,
     "rewrites": [
