@@ -1,6 +1,9 @@
-import { useRef } from "react"
+import { forwardRef, useImperativeHandle, useRef } from "react"
 import HCaptcha from "@hcaptcha/react-hcaptcha"
 
+export interface CaptchaHandle {
+  reset: () => void
+}
 interface CaptchaProps {
   onLoaded?: () => void
   setToken: (token: string | null) => void
@@ -9,16 +12,24 @@ interface CaptchaProps {
   validateAutomatically?: boolean
   sitekey?: string
 }
+const Captcha = forwardRef<CaptchaHandle, CaptchaProps>((props, ref) => {
+  const {
+    onLoaded,
+    setToken,
+    onExpired,
+    onError,
+    validateAutomatically = false,
+    sitekey = "11cc2866-44e0-4858-b66e-946c380049ac",
+  } = props
 
-const Captcha = ({
-  onLoaded,
-  setToken,
-  onExpired,
-  onError,
-  validateAutomatically = false,
-  sitekey = "11cc2866-44e0-4858-b66e-946c380049ac",
-}: CaptchaProps) => {
   const captchaRef = useRef<HCaptcha>(null)
+
+  useImperativeHandle(ref, () => ({
+    reset: () => {
+      captchaRef.current?.resetCaptcha()
+      setToken(null)
+    },
+  }))
 
   const captchaVerify = (token: string, _: string) => {
     setToken(token)
@@ -50,5 +61,5 @@ const Captcha = ({
       ref={captchaRef}
     />
   )
-}
+})
 export default Captcha

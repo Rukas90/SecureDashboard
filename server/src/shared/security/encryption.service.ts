@@ -6,7 +6,6 @@ import {
   CipherGCMTypes,
 } from "crypto"
 import { Result } from "@project/shared"
-import logger from "../logger"
 
 export class EncryptionError extends Error {
   code = "ENCRYPTION_FAILED"
@@ -39,7 +38,6 @@ export const encryptGCM = (
 
     return Result.success(combined.toString("base64"))
   } catch (error) {
-    logger.error(error)
     return Result.error(new EncryptionError())
   }
 }
@@ -64,7 +62,6 @@ export const decryptGCM = (
 
     return Result.success(decrypted.toString("utf8"))
   } catch (error) {
-    logger.error(error)
     return Result.error(new DecryptionError())
   }
 }

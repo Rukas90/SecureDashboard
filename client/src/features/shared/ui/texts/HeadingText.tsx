@@ -6,7 +6,10 @@ const HeadingText = ({
   ...props
 }: React.ComponentProps<"h4">) => {
   return (
-    <h4 {...props} className={clsx(className, "text-stone-300 text-lg")}>
+    <h4
+      {...props}
+      className={clsx(className, "text-stone-300 xs:text-lg text-base")}
+    >
       {children}
     </h4>
   )

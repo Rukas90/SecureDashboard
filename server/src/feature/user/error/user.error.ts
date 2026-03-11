@@ -1,5 +1,4 @@
 import {
-  AccessForbiddenError,
   InvalidOperationError,
   RateLimitExceededError,
   ResourceMissingError,
@@ -29,18 +28,5 @@ export class UserEmailVerificationCooldownError extends RateLimitExceededError {
       UserErrorCodes.USER_EMAIL_VERIFICATION_COOLDOWN,
       { data: { [RETRY_AFTER_MS_FIELD_NAME]: retryAfterMs } },
     )
-  }
-}
-export class UserSessionCannotRevokeCurrentError extends InvalidOperationError {
-  constructor() {
-    super(
-      "Cannot revoke own current session.",
-      UserErrorCodes.USER_SESSION_CANNOT_REVOKE_CURRENT,
-    )
-  }
-}
-export class UserRevokeForeignSessionError extends AccessForbiddenError {
-  constructor() {
-    super("Cannot revoke foreign session.", UserErrorCodes.USER_REVOKE_FOREIGN)
   }
 }

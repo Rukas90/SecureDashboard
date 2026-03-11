@@ -18,7 +18,7 @@ const DividerLabel = ({ drawLine = "both", children, className }: Props) => {
       )}
     >
       {drawLine !== "right" && line}
-      <p className="p-0 m-0 whitespace-nowrap">{children}</p>
+      <p className="p-0 m-0 xs:whitespace-nowrap text-center">{children}</p>
       {drawLine !== "left" && line}
     </div>
   )

@@ -8,9 +8,9 @@ export abstract class DomainError extends Error {
   constructor(
     message: string,
     code: string,
-    options?: { cause?: unknown; data?: Record<string, unknown> },
+    options?: { data?: Record<string, unknown> },
   ) {
-    super(message, options)
+    super(message)
     this.code = code
     this.data = options?.data
     this.name = new.target.name

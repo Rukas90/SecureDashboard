@@ -12,7 +12,7 @@ import AccountSettingSkeleton from "./AccountSettingSkeleton"
 import { useTranslation } from "react-i18next"
 import { OAuthService } from "@features/auth"
 import { useQueryClient } from "@tanstack/react-query"
-import { toast } from "react-toastify"
+import { toast } from "@src/lib"
 
 const SignInMethodIcons: Record<OAuthProvider, ReactNode> = {
   google: <IconGoogle className="w-4.5" />,
@@ -30,7 +30,7 @@ const AccountSignInMethods = () => {
       .then((res) => {
         if (res.ok) {
           queryClient.invalidateQueries({ queryKey: ["user", "profile"] })
-          toast("OAuth provider disconnected successfully!")
+          toast.success("OAuth provider disconnected successfully!")
         }
       })
       .finally(() => setDisconnecting(false))

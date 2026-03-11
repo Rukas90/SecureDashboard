@@ -8,7 +8,10 @@ const TitleText = ({
   return (
     <h1
       {...props}
-      className={clsx(className, "text-5xl text-stone-200 font-medium mb-4")}
+      className={clsx(
+        className,
+        "xs:text-5xl text-3xl text-stone-200 font-medium mb-4",
+      )}
     >
       {children}
     </h1>

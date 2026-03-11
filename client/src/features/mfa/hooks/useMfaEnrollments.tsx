@@ -15,6 +15,7 @@ const useMfaEnrollments = () => {
     enrollments: query.data,
     isMfaActive: !!query.data?.some((e) => e.configured),
     totp: query.data?.find((e) => e.method === "totp"),
+    isMfaLoading: query.isLoading,
   }
 }
 export default useMfaEnrollments

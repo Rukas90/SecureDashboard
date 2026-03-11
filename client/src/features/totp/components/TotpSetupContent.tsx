@@ -2,6 +2,7 @@ import {
   CancelButton,
   CodeField,
   ErrorBox,
+  Line,
   SubmitButton,
 } from "@features/shared"
 import TotpHelpInfo from "./TotpHelpInfo"
@@ -10,32 +11,44 @@ import { useState } from "react"
 import useTotpSetup from "../hooks/useTotpSetup"
 import { useNavigate } from "react-router-dom"
 
-const TotpSetupContent = () => {
-  const { data, confirmCode, cancelSetup, error, requiredCodeLength } =
+interface Props {
+  onConfigured: (backupCodes: string[] | null) => void
+}
+const TotpSetupContent = ({ onConfigured }: Props) => {
+  const { data, confirmCode, error, requiredCodeLength, isLoading } =
     useTotpSetup()
   const [code, setCode] = useState("")
   const navigate = useNavigate()
 
+  const handleConfirm = async (code: string) => {
+    const result = await confirmCode(code)
+
+    if (result.ok) {
+      onConfigured(result.data.backupCodes)
+    }
+  }
+
   return (
     <>
-      <TotpSetupData data={data} />
+      <TotpSetupData data={data} isLoading={isLoading} />
       <CodeField
         digits={requiredCodeLength}
         placeholder="-"
         onCodeChanged={setCode}
+        onCompleted={(code) => handleConfirm(code)}
       />
       <TotpHelpInfo />
-      <div className="w-full h-px bg-stone-800 my-2" />
-      <div className="flex gap-4 items-center mb-2">
+      <Line defaultColor={false} className="bg-stone-800 my-2" />
+      <div className="flex gap-4 items-center xs:mb-2">
         <CancelButton
           text="Cancel"
           action={() => {
-            cancelSetup().finally(() => navigate("/dashboard/security"))
+            navigate("/dashboard/security")
           }}
         />
         <SubmitButton
           text="Submit"
-          action={() => confirmCode(code)}
+          action={() => handleConfirm(code)}
           disabled={code.length !== requiredCodeLength}
         />
       </div>

@@ -1,2 +1,3 @@
-export { endpointErrorHandler } from "./error.middleware"
-export { validateBody } from "./body.validate.middleware"
+export { createEndpointErrorHandler } from "./error.middleware"
+export { createValidateBody } from "./body.validate.middleware"
+export { createRateLimiter } from "./rate-limit.middleware"

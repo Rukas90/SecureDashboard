@@ -1,35 +1,54 @@
-import { database } from "@base/app"
 import {
   AuthEmailAlreadyExistError,
   AuthRegistrationFailedError,
 } from "../error/auth.error"
 import { Result } from "@project/shared"
 import { hashing } from "@shared/security"
-import { Prisma, User } from "@prisma/client"
+import { IUserRepository, IUserService } from "@features/user"
+import { UniqueConstraintError } from "@shared/errors"
+import { IAuthService } from "./auth.service"
+import { wrap } from "@shared/base"
+import { SessionContext } from "@features/session"
 
-const registerService = {
-  createNewUser: async (
-    email: string,
-    password: string,
-  ): Promise<
-    Result<User, AuthEmailAlreadyExistError | AuthRegistrationFailedError>
-  > => {
-    const passwordHashed = await hashing.argon2.hash(password)
-    try {
-      const newUser = await database.client.user.create({
-        data: {
-          email: email,
-          password_hash: passwordHashed,
-          is_verified: false,
-        },
-      })
-      return Result.success(newUser)
-    } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        return Result.error(new AuthEmailAlreadyExistError())
-      }
-      return Result.error(new AuthRegistrationFailedError())
-    }
-  },
+export class RegisterService {
+  constructor(
+    private readonly userService: IUserService,
+    private readonly userRepository: IUserRepository,
+    private readonly authService: IAuthService,
+  ) {}
+
+  async register(email: string, password: string, context: SessionContext) {
+    const user = await this.createNewUser(email, password)
+    if (!user.ok) return user
+
+    await this.userService.createEmailVerifyVerification(
+      user.data.id,
+      user.data.email,
+    )
+    const info = await this.authService.createFullAuthSession({
+      userId: user.data.id,
+      isVerified: false,
+      context,
+    })
+    if (!info.ok) return info
+
+    return Result.success(info.data)
+  }
+  async createNewUser(email: string, password: string) {
+    const passwordHash = await hashing.argon2.hash(password)
+    return await Result.orErrAsync(
+      this.userRepository.create({
+        email,
+        isVerified: false,
+        passwordHash,
+      }),
+      (error) => {
+        if (error instanceof UniqueConstraintError) {
+          return Result.error(new AuthEmailAlreadyExistError())
+        }
+        return Result.error(new AuthRegistrationFailedError())
+      },
+    )
+  }
 }
-export default registerService
+export type IRegisterService = Pick<RegisterService, keyof RegisterService>

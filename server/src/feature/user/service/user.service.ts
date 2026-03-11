@@ -1,70 +1,128 @@
-import { database } from "@base/app"
 import {
-  Device,
   OAuthProvider,
+  PasswordSetSchema,
+  PasswordUpdateSchema,
   Result,
-  SessionDetails,
-  SessionLocation,
-  UserAgent,
-  UserProfile,
   VoidResult,
 } from "@project/shared"
-import { Prisma, User, UserSession } from "@prisma/client"
 import {
   UserEmailVerificationCooldownError,
   UserFailedToDeleteError,
   UserNotFoundError,
 } from "../error/user.error"
-import { hashing } from "@shared/security"
-import { sessionService } from "@features/session"
-import { refreshService } from "@shared/token"
-import { AuthUnauthenticatedError } from "@features/auth"
-import { UAParser } from "ua-parser-js"
-import { UserInclude } from "prisma/generated/models/User"
-import VerifyEmailDispatch from "../dispatch/verify-email.dispatch"
-import { establishVerification, VerificationJob } from "@features/verification"
+import { ISessionService } from "@features/session"
+import { IRefreshService } from "@shared/token"
+import { AuthUnauthenticatedError, ILoginService } from "@features/auth"
 import ms from "ms"
+import { IUserRepository } from "../repository/user.repository"
+import z from "zod"
+import { ValidationError } from "@shared/errors"
+import { hashing } from "@shared/security"
+import { IVerifyUserEvent } from "../event/verify-email.event"
 
-const userService = {
-  constants: {
-    RETRY_EMAIL_VERIFY_TIMEOUT_DELAY: ms("5m"),
-  },
-  getUserByEmail: async <T extends UserInclude | undefined>(
-    email: string,
-    include?: T,
-  ): Promise<
-    Result<Prisma.UserGetPayload<{ include: T }>, UserNotFoundError>
-  > => {
-    const user = await database.client.user.findUnique({
-      where: { email },
-      include,
+const RETRY_EMAIL_VERIFY_TIMEOUT_DELAY = ms("5m")
+
+export type PasswordUpdateBody = z.infer<typeof PasswordUpdateSchema>
+export type PasswordSetBody = z.infer<typeof PasswordSetSchema>
+export type PasswordUpdateOrSetBody = PasswordUpdateBody | PasswordSetBody
+
+export class UserService {
+  constructor(
+    private readonly userRepository: IUserRepository,
+    private readonly sessionService: ISessionService,
+    private readonly refreshService: IRefreshService,
+    private readonly verifyUserEvent: IVerifyUserEvent,
+  ) {}
+
+  async updatePassword(userId: string, data: PasswordUpdateOrSetBody) {
+    const user = await this.userRepository.getById(userId)
+    if (!user.ok) return user
+
+    if (!user.data) {
+      return Result.error(new UserNotFoundError())
+    }
+    const hasPassword = !!user.data.password_hash
+    const schema = hasPassword ? PasswordUpdateSchema : PasswordSetSchema
+    const validation = await schema.safeParseAsync(data)
+
+    if (!validation.success) {
+      const error = validation.error.issues[0]
+      return Result.error(new ValidationError(error.message, error.code))
+    }
+    if (hasPassword) {
+      const isPasswordCorrect = await hashing.argon2.compare(
+        (data as PasswordUpdateBody).currentPassword,
+        user.data.password_hash!,
+      )
+      if (!isPasswordCorrect) {
+        return Result.error(new AuthUnauthenticatedError()) // TODO: Replace with other error (AccessForbidden instead. This is a special error type)
+      }
+    }
+    const passwordHash = await hashing.argon2.hash(data.password)
+    const updateResult = await this.userRepository.updatePasswordById(
+      userId,
+      passwordHash,
+    )
+
+    if (!updateResult.ok) return updateResult
+    return VoidResult.ok()
+  }
+  async getUserSessions(userId: string, refreshToken: string) {
+    const currentToken =
+      await this.refreshService.findRefreshToken(refreshToken)
+
+    if (!currentToken.ok) {
+      return Result.error(new AuthUnauthenticatedError()) // TODO: Replace with other error (AccessForbidden instead. This is a special error type)
+    }
+    return await this.sessionService.getSessions(
+      userId,
+      currentToken.data.family_id,
+    )
+  }
+  async deleteUser(userId: string) {
+    const result = await this.userRepository.deleteById(userId)
+    if (!result.ok) return VoidResult.error(new UserFailedToDeleteError())
+
+    return VoidResult.ok()
+  }
+  async sendEmailVerification(userId: string) {
+    const user = await this.userRepository.getById(userId, {
+      verifications: true,
     })
-    return user
-      ? Result.success(user as Prisma.UserGetPayload<{ include: T }>)
-      : Result.error(new UserNotFoundError())
-  },
-  getUserById: async <T extends UserInclude | undefined>(
-    id: string,
-    include?: T,
-  ): Promise<
-    Result<Prisma.UserGetPayload<{ include: T }>, UserNotFoundError>
-  > => {
-    const user = await database.client.user.findUnique({
-      where: { id },
-      include,
+
+    if (!user.ok) return user
+    if (!user.data) return VoidResult.error(new UserNotFoundError())
+
+    const latest = user.data.verifications
+      .filter((v) => v.event_type === this.verifyUserEvent.name)
+      .reduce<
+        (typeof user.data.verifications)[number] | null
+      >((a, b) => (!a || b.created_at > a.created_at ? b : a), null)
+
+    if (latest) {
+      const retryAt =
+        latest.created_at.getTime() + RETRY_EMAIL_VERIFY_TIMEOUT_DELAY
+
+      if (retryAt > Date.now()) {
+        return VoidResult.error(
+          new UserEmailVerificationCooldownError(retryAt - Date.now()),
+        )
+      }
+    }
+    await this.createEmailVerifyVerification(user.data.id, user.data.email)
+    return Result.success({
+      retryAfterMs: RETRY_EMAIL_VERIFY_TIMEOUT_DELAY,
     })
-    return user
-      ? Result.success(user as Prisma.UserGetPayload<{ include: T }>)
-      : Result.error(new UserNotFoundError())
-  },
-  getUserProfile: async (
-    id: string,
-  ): Promise<Result<UserProfile, UserNotFoundError>> => {
-    const user = await userService.getUserById(id, {
-      oauths: { select: { provider: true, username: true } },
+  }
+  async getProfile(userId: string) {
+    const user = await this.userRepository.getById(userId, {
+      oauths: {
+        select: { provider: true, username: true },
+      },
     })
-    if (!user.ok) {
-      return user
+    if (!user.ok) return user
+    if (!user.data) {
+      return Result.error(new UserNotFoundError())
     }
     return Result.success({
       email: user.data.email,
@@ -77,175 +135,18 @@ const userService = {
         }
       }),
     })
-  },
-  createNewUser: async (email: string, isVerified: boolean): Promise<User> => {
-    return await database.client.user.create({
-      data: {
-        email,
-        is_verified: isVerified,
-      },
-    })
-  },
-  verifyUser: async (userId: string): Promise<User> => {
-    return database.client.user.update({
-      where: {
-        id: userId,
-      },
-      data: {
-        is_verified: true,
-      },
-    })
-  },
-  setPassword: async (userId: string, password: string) => {
-    return database.client.user.update({
-      where: {
-        id: userId,
-      },
-      data: {
-        password_hash: await hashing.argon2.hash(password),
-      },
-    })
-  },
-  getUserSessions: async (
-    userId: string,
-    refreshToken: string,
-  ): Promise<Result<SessionDetails[], AuthUnauthenticatedError>> => {
-    const sessions: UserSession[] = await sessionService.getSessions(userId)
-    const currentToken = await refreshService.findRefreshToken(refreshToken)
-
-    if (!currentToken.ok) {
-      return Result.error(new AuthUnauthenticatedError())
-    }
-    const activeSessions = sessions.filter(
-      (s) => sessionService.getSessionStatus(s) === "active",
-    )
-    const staleSessions = sessions
-      .filter((s) => sessionService.getSessionStatus(s) !== "active")
-      .slice(0, 2)
-
-    return Result.success(
-      [...activeSessions, ...staleSessions].map(
-        (session) =>
-          ({
-            id: session.id,
-            status: sessionService.getSessionStatus(session),
-            isCurrent: session.family_id === currentToken.data.family_id,
-            user_agent: parseUserAgent(session.user_agent),
-            ip_address: session.ip_address,
-            location: parseLocation(session.location, session.ip_address),
-            created_at: session.created_at,
-            last_accessed_at: session.last_accessed_at,
-          }) satisfies SessionDetails,
-      ),
-    )
-  },
-  deleteUser: async (
-    userId: string,
-  ): Promise<VoidResult<UserFailedToDeleteError>> => {
-    try {
-      await database.client.user.delete({
-        where: {
-          id: userId,
-        },
-      })
-      return VoidResult.ok()
-    } catch {
-      return VoidResult.error(new UserFailedToDeleteError())
-    }
-  },
-  sendEmailVerification: async (userId: string) => {
-    const user = await userService.getUserById(userId, { verifications: true })
-
-    if (!user.ok) {
-      return VoidResult.error(user.error)
-    }
-    const latest = user.data.verifications
-      .filter((v) => v.dispatch_type === VerifyEmailDispatch.DISPATCH_NAME)
-      .reduce<
-        (typeof user.data.verifications)[number] | null
-      >((a, b) => (!a || b.created_at > a.created_at ? b : a), null)
-
-    if (latest) {
-      const retryAt =
-        latest.created_at.getTime() +
-        userService.constants.RETRY_EMAIL_VERIFY_TIMEOUT_DELAY
-
-      if (retryAt > Date.now()) {
-        return VoidResult.error(
-          new UserEmailVerificationCooldownError(retryAt - Date.now()),
-        )
-      }
-    }
-    await userService.createEmailVerifyVerification(
-      user.data.id,
-      user.data.email,
-    )
-    return VoidResult.ok()
-  },
-  createEmailVerifyVerification: async (userId: string, email: string) => {
-    const job: VerificationJob<VerifyEmailDispatch> = {
-      data: {
-        userId,
-        expiresMs: ms("10m"),
-        dispatchName: VerifyEmailDispatch.DISPATCH_NAME,
-        dispatchPayload: undefined,
-        mailOptions: {
-          recipient: email,
-          subject: "Verify your account email",
-        },
-      },
+  }
+  async createEmailVerifyVerification(userId: string, email: string) {
+    this.verifyUserEvent.invoke({
+      userId,
+      payload: undefined,
+      expiresMs: ms("10m"),
       type: "token",
-    }
-    await establishVerification(job)
-  },
-}
-
-const parseUserAgent = (userAgentString: string): UserAgent => {
-  const parser = new UAParser(userAgentString)
-  const result = parser.getResult()
-
-  return {
-    browser: result.browser.name || "Unknown Browser",
-    browserVersion: result.browser.version,
-    os: result.os.name || "Unknown OS",
-    osVersion: result.os.version,
-    device: result.device.type
-      ? ((result.device.type.charAt(0).toUpperCase() +
-          result.device.type.slice(1)) as Device)
-      : "Desktop",
+      mailOptions: {
+        recipient: email,
+        subject: "Verify your account email",
+      },
+    })
   }
 }
-const parseLocation = (
-  locationString: string | null,
-  ipAddress: string,
-): SessionLocation | "localhost" | null => {
-  if (isLocalhost(ipAddress)) {
-    return "localhost"
-  }
-  if (!locationString) {
-    return null
-  }
-  try {
-    const parts = locationString.split(",").map((p) => p.trim())
-
-    if (parts.length >= 2) {
-      return {
-        city: parts[0],
-        region: parts.length > 2 ? parts[1] : undefined,
-        country: parts[parts.length - 1],
-      }
-    }
-    return null
-  } catch {
-    return null
-  }
-}
-const isLocalhost = (ipAddress: string) => {
-  return (
-    ipAddress === "127.0.0.1" ||
-    ipAddress === "::1" ||
-    ipAddress.startsWith("localhost")
-  )
-}
-
-export default userService
+export type IUserService = Pick<UserService, keyof UserService>

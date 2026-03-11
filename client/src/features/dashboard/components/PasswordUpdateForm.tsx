@@ -4,24 +4,31 @@ import { useTranslation } from "react-i18next"
 import { usePasswordForm } from "../hooks/usePasswordForm"
 import { PasswordUpdateSchema } from "@project/shared"
 import UserService from "../services/UserService"
-import { toast } from "react-toastify"
+import { toast } from "@src/lib"
+import { useCallback } from "react"
 
 const PasswordUpdateForm = ({ onSuccess }: PasswordFormProps) => {
-  const { handleSubmit, isSubmitting, fieldErrors, error } = usePasswordForm({
-    schema: PasswordUpdateSchema,
-    requestFn: UserService.updatePassword,
-    onSuccess: () => {
-      toast("Password updated successfully!")
-      onSuccess?.()
-    },
-  })
+  const handleSuccess = useCallback(() => {
+    toast.success("Password updated successfully!")
+    onSuccess?.()
+  }, [onSuccess])
+
+  const { handleSubmit, isSubmitting, fieldErrors, error, clearError } =
+    usePasswordForm({
+      schema: PasswordUpdateSchema,
+      requestFn: UserService.updatePassword,
+      onSuccess: handleSuccess,
+    })
+
   const { t } = useTranslation()
+
   return (
     <PasswordForm
       submitBtnText={t("UPDATE_PASSWORD")}
       onSubmit={handleSubmit}
       disabled={isSubmitting}
       error={error}
+      clearError={clearError}
     >
       <InputField
         id="current_password"

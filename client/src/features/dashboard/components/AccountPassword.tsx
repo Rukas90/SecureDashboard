@@ -29,7 +29,7 @@ const AccountPassword = () => {
           <IconPassword className="text-stone-300 w-4.5" />
           <div>
             <p className="text-stone-300 text-sm">{t("PASSWORD")}</p>
-            <p className="text-stone-500 text-sm">
+            <p className="text-stone-500 xs:text-sm text-xs">
               {hasPassword ? t("CONFIGURED") : t("NOT_CONFIGURED")}
             </p>
           </div>

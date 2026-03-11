@@ -2,9 +2,9 @@ import type { SessionStatus } from "@project/shared"
 import clsx from "clsx"
 
 const ColorStyles = {
-  active: "bg-green-500 outline-green-950",
-  expired: "bg-red-500 outline-red-950",
-  revoked: "bg-gray-500 outline-gray-900",
+  active: "bg-green-500",
+  expired: "bg-red-500",
+  revoked: "bg-gray-500",
 } satisfies Record<SessionStatus, string>
 
 interface Props extends Pick<React.ComponentProps<"div">, "className"> {
@@ -12,13 +12,21 @@ interface Props extends Pick<React.ComponentProps<"div">, "className"> {
 }
 const StatusDot = ({ status, className }: Props) => {
   return (
-    <div
-      className={clsx(
-        "rounded-full outline-3 size-2",
-        ColorStyles[status],
-        className,
-      )}
-    />
+    <span className={clsx("relative flex size-2", className)}>
+      <span
+        className={clsx(
+          "absolute inline-flex h-full w-full rounded-full",
+          status === "active" && "animate-ping",
+          ColorStyles[status],
+        )}
+      />
+      <span
+        className={clsx(
+          "relative inline-flex size-2 rounded-full",
+          ColorStyles[status],
+        )}
+      />
+    </span>
   )
 }
 export default StatusDot

@@ -1,4 +1,5 @@
 import { ConfirmButton, ErrorBox } from "@features/shared"
+import clsx from "clsx"
 import type { FormEvent } from "react"
 
 export interface PasswordFormProps {
@@ -9,6 +10,7 @@ interface Props extends Pick<React.ComponentProps<"div">, "children"> {
   onSubmit: (form: FormEvent<HTMLFormElement>) => void
   error: string | null
   disabled: boolean
+  clearError: () => void
 }
 const PasswordForm = ({
   children,
@@ -16,17 +18,20 @@ const PasswordForm = ({
   onSubmit,
   error,
   disabled,
+  clearError,
 }: Props) => {
   return (
-    <form className="flex flex-col gap-4" onSubmit={onSubmit}>
-      {children}
+    <form className="flex flex-col" onSubmit={onSubmit}>
+      <div className="flex flex-col gap-4 mb-4">{children}</div>
       <ConfirmButton
         type="submit"
         text={submitBtnText}
-        className="w-fit text-sm"
+        className={clsx("w-fit text-sm", error && "mb-4")}
         disabled={disabled}
       />
-      <ErrorBox isHidden={!error}>{error}</ErrorBox>
+      <ErrorBox isHidden={!error} onClose={clearError}>
+        {error}
+      </ErrorBox>
     </form>
   )
 }

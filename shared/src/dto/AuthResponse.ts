@@ -1,4 +1,4 @@
-import { AuthUser } from "../lib/AuthUser"
+import { AuthUser } from "../types/AuthUser"
 
 export type AuthResponseDto = {
   user: AuthUser

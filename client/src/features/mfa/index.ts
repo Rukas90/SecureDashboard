@@ -1,5 +1,8 @@
 export { default as MfaService } from "./services/MfaService"
 export { default as TotpService } from "./services/TotpService"
 export { default as MfaAuthView } from "./routes/MfaAuthView"
+export { default as RecoveryCodesView } from "./routes/RecoveryCodesView"
 export { default as useMfaEnrollments } from "./hooks/useMfaEnrollments"
 export { default as TotpLogin } from "./components/TotpLogin"
+export { default as RecoveryCodesList } from "./components/RecoveryCodesList"
+export * from "./utils/DownloadUtils"

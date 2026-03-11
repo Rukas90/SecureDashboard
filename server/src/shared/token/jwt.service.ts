@@ -1,55 +1,82 @@
 import { JWTPayload, SignJWT, jwtVerify } from "jose"
 import { JOSEError } from "jose/errors"
 import { UnexpectedError } from "@shared/errors"
-import { User } from "@prisma/client"
 import { AuthUser, Result, Scope } from "@project/shared"
 import ms from "ms"
-import { config, env } from "@base/app"
-
-const ENCODER = new TextEncoder()
-const SECRET = ENCODER.encode(env.get.JWT_SECRET)
+import { AppConfig, IEnvironment } from "@base/app"
 
 export type AccessTokenClaims = {
   scope: Scope[]
   email_verified: boolean
   sid?: string
 }
-
 export interface AccessTokenPayload extends JWTPayload, AccessTokenClaims {}
 
-const jwtService = {
-  constants: {
-    ACCESS_PRE_2FA_TOKEN_EXPIRY_MS: ms("5m"),
-    ACCESS_TOKEN_EXPIRY_MS: ms("15m"),
-  },
-  generatePre2faAccessToken: async (user: User) => {
-    return await generateAccessToken(
-      user,
+export const ACCESS_TOKEN_EXPIRY_MS = ms("15m")
+export const ACCESS_PRE_MFA_TOKEN_EXPIRY_MS = ms("5m")
+
+export class JwtService {
+  secret: Uint8Array<ArrayBufferLike>
+
+  constructor(
+    private readonly config: AppConfig,
+    environment: IEnvironment,
+  ) {
+    this.secret = new TextEncoder().encode(environment.get.JWT_SECRET)
+  }
+
+  async generatePreMfaAccessToken(userId: string, isVerified: boolean) {
+    return this.generateAccessToken(
+      userId,
       {
         scope: ["mfa:verify"],
-        email_verified: user.is_verified,
+        email_verified: isVerified,
       },
-      jwtService.constants.ACCESS_PRE_2FA_TOKEN_EXPIRY_MS,
+      ACCESS_PRE_MFA_TOKEN_EXPIRY_MS,
     )
-  },
-  generateFullAccessToken: async (sessionId: string, user: User) => {
-    return await generateAccessToken(
-      user,
+  }
+  async generateFullAccessToken(
+    userId: string,
+    isVerified: boolean,
+    sessionId: string,
+  ) {
+    return this.generateAccessToken(
+      userId,
       {
         scope: ["admin:access"],
-        email_verified: user.is_verified,
+        email_verified: isVerified,
         sid: sessionId,
       },
-      jwtService.constants.ACCESS_TOKEN_EXPIRY_MS,
+      ACCESS_TOKEN_EXPIRY_MS,
     )
-  },
-  validateAccessToken: async (
-    token: string,
-  ): Promise<Result<AccessTokenPayload, Error>> => {
+  }
+  private async generateAccessToken(
+    userId: string,
+    claims: AccessTokenClaims,
+    expirationMs: number,
+  ) {
+    const expiresAtMs = Date.now() + expirationMs
+
+    const accessToken = await new SignJWT(claims)
+      .setIssuer(this.config.origin.api)
+      .setAudience(this.config.origin.client)
+      .setSubject(userId)
+      .setIssuedAt()
+      .setExpirationTime(Math.floor(expiresAtMs / 1000))
+      .setProtectedHeader({ alg: "HS256" })
+      .sign(this.secret)
+
+    const authUser: AuthUser = {
+      scope: claims.scope,
+      expiresAt: expiresAtMs,
+    }
+    return { accessToken, authUser }
+  }
+  async validateAccessToken(token: string) {
     try {
-      const result = await jwtVerify<AccessTokenPayload>(token, SECRET, {
-        issuer: config().origin.api,
-        audience: config().origin.client,
+      const result = await jwtVerify<AccessTokenPayload>(token, this.secret, {
+        issuer: this.config.origin.api,
+        audience: this.config.origin.client,
       })
       return Result.success(result.payload)
     } catch (error) {
@@ -63,30 +90,6 @@ const jwtService = {
         ),
       )
     }
-  },
-}
-
-const generateAccessToken = async (
-  user: User,
-  claims: AccessTokenClaims,
-  expirationMs: number,
-): Promise<{ accessToken: string; authUser: AuthUser }> => {
-  const expiresAtMs = Date.now() + expirationMs
-
-  const accessToken = await new SignJWT(claims)
-    .setIssuer(config().origin.api)
-    .setAudience(config().origin.client)
-    .setSubject(user.id)
-    .setIssuedAt()
-    .setExpirationTime(Math.floor(expiresAtMs / 1000))
-    .setProtectedHeader({ alg: "HS256" })
-    .sign(SECRET)
-
-  const authUser: AuthUser = {
-    scope: claims.scope,
-    expiresAt: expiresAtMs,
   }
-  return { accessToken, authUser }
 }
-
-export default jwtService
+export type IJwtService = Pick<JwtService, keyof JwtService>

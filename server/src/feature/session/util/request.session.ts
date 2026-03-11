@@ -1,5 +1,5 @@
 import { Request } from "express"
-import { SessionContext } from "../service/session.service"
+import { SessionContext } from "../types/session.types"
 
 export const extractSessionContext = (req: Request): SessionContext => {
   return {

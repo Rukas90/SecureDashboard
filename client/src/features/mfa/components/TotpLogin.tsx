@@ -1,5 +1,5 @@
 import { CodeField, PlainText, SubmitButton } from "@features/shared"
-import type { FormEvent } from "react"
+import { useRef, type FormEvent } from "react"
 import TotpService from "../services/TotpService"
 import { totpCodeSchema } from "@project/shared"
 import { useOutletContext } from "react-router-dom"
@@ -9,7 +9,7 @@ import { useTranslation } from "react-i18next"
 
 const TotpLogin = () => {
   const { t } = useTranslation()
-
+  const formRef = useRef<HTMLFormElement>(null)
   const { setUser } = useAuthContext()
   const { setError } = useOutletContext<MfaOutletContext>()
 
@@ -34,12 +34,17 @@ const TotpLogin = () => {
   }
   return (
     <form
+      ref={formRef}
       className="flex flex-col gap-6 items-center"
       method="submit"
       onSubmit={handleVerification}
     >
       <PlainText className="text-center">{t("TOTP_MFA_NOTE")}</PlainText>
-      <CodeField id="verify_code" name="code" />
+      <CodeField
+        id="verify_code"
+        name="code"
+        onCompleted={() => formRef.current?.requestSubmit()}
+      />
       <SubmitButton type="submit" text={t("VERIFY")} extendWidth />
     </form>
   )

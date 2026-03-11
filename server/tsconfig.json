@@ -19,6 +19,6 @@
     "useUnknownInCatchVariables": true,
     "skipLibCheck": true,
   },
-  "include": ["src/**/*", "src/**/*.d.ts", "src/**/*.ts", "prisma/**/*", "."],
+  "include": ["src/**/*", "src/**/*.d.ts", "src/**/*.ts", "prisma/**/*", ".", "src/bootstrap/container/event/.container.ts"],
   "exclude": ["node_modules", "dist"]
 }

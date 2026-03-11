@@ -1,68 +1,128 @@
 import { OAuthProvider, Result, VoidResult } from "@project/shared"
-import { OAuthConfig, oauthConfig } from "../config/oauth.config"
+import { IOAuthConfigService, OAuthProviderConfig } from "./config.service"
 import { OAuth, User } from "@prisma/client"
-import { database } from "@base/app"
-import { userService } from "@features/user"
+import { IUserRepository, UserNotFoundError } from "@features/user"
 import crypto from "crypto"
 import {
   OAuthDisconnectNotPossibleError,
   OAuthEmailNotProvidedError,
   OAuthFailedToAuthenticateError,
+  OAuthInvalidStateError,
+  OAuthMissingAuthorizationCodeError,
   OAuthProviderNotFoundError,
 } from "../error/oauth.error"
 import { OAuthSession } from "@shared/util"
-import userInfoService from "./userInfo.service"
-import logger from "@shared/logger"
+import { DatabaseError, UnexpectFailedOperation } from "@shared/errors"
+import { IOAuthRepository } from "../repository/oauth.repository"
+import { OAuthRes, OAuthTokens, OAuthUserInfo } from "../types/oauth.types"
+import { IUnitOfWork } from "@shared/base"
+import { IUserInfoService } from "./userInfo.service"
+import { ILogger } from "@shared/logger"
+import { IAuthService } from "@base/feature/auth"
+import { SessionContext } from "@base/feature/session"
+import { AppConfig, IEnvironment } from "@base/app"
 
-export type OAuthTokens = {
-  accessToken: string
-  refreshToken?: string
-  expiresIn?: number
-  scope?: string
+export type OAuthAuthorization = {
+  state: string
+  verifier: string
+  url: string
 }
-export type OAuthUserInfo = {
-  providerId: string
-  email: string
-  name: string
-  emailVerified: boolean
-  username?: string
-}
+export class OAuthService {
+  private readonly redirectCallbackUrl: string
 
-interface OAuthRes {
-  access_token: string
-  refresh_token: string
-  expires_in: number
-  scope: string
-}
+  constructor(
+    private readonly authService: IAuthService,
+    private readonly unitOfWork: IUnitOfWork,
+    private readonly oauthRepository: IOAuthRepository,
+    private readonly userRepository: IUserRepository,
+    private readonly userInfoService: IUserInfoService,
+    private readonly oauthConfig: IOAuthConfigService,
+    private readonly logger: ILogger,
+    config: AppConfig,
+  ) {
+    const redirectUrl = new URL(config.origin.client)
+    redirectUrl.pathname = "oauth/callback"
 
-const oauthService = {
-  getAuthorizationUrl: (
+    this.redirectCallbackUrl = redirectUrl.toString()
+  }
+
+  getAuthorization(provider: OAuthProvider): OAuthAuthorization {
+    const config = this.oauthConfig[provider]
+
+    const { verifier, challenge } = this.generatePKCE()
+    const state = this.generateState()
+
+    const params = this.createUrlSearchParams(config, state, challenge)
+
+    return {
+      state,
+      verifier,
+      url: `${config.authUrl}?${params.toString()}`,
+    }
+  }
+  async processCallback(
     provider: OAuthProvider,
-    state: string,
-    codeChallenge: string,
-  ) => {
-    const config = oauthConfig[provider]
-    const params = createUrlSearchParams(config, state, codeChallenge)
+    code?: string,
+    state?: string,
+    session?: OAuthSession,
+    context?: SessionContext,
+  ) {
+    if (!session) {
+      return Result.error(new OAuthInvalidStateError())
+    }
+    if (session.provider !== provider) {
+      return Result.error(new OAuthInvalidStateError())
+    }
+    if (!state || !session.state || state !== session.state) {
+      return Result.error(new OAuthInvalidStateError())
+    }
+    if (!code || typeof code !== "string") {
+      return Result.error(new OAuthMissingAuthorizationCodeError())
+    }
+    if (!session.verifier) {
+      return Result.error(new OAuthInvalidStateError())
+    }
+    const oauth = await this.processOAuthRequest(session, code)
+    if (!oauth.ok) return oauth
 
-    return `${config.authUrl}?${params.toString()}`
-  },
-  processOAuthRequest: async (
-    session: OAuthSession & { code: string },
+    const auth = await this.authenticateOAuthAccount(
+      oauth.data.session,
+      oauth.data.userInfo,
+    )
+    if (!auth.ok) return auth
+
+    const user = auth.data.user
+
+    const sessionInfo = await this.authService.establishAuthSession({
+      userId: user.id,
+      isVerified: user.is_verified,
+      context,
+    })
+    if (!sessionInfo.ok) return sessionInfo
+
+    return Result.success({
+      sessionInfo: sessionInfo.data,
+      redirectUrl: this.redirectCallbackUrl,
+    })
+  }
+  private async processOAuthRequest(
+    session: OAuthSession,
+    code: string,
   ): Promise<
     Result<
       { tokens: OAuthTokens; userInfo: OAuthUserInfo; session: OAuthSession },
       Error
     >
-  > => {
-    const tokenResult = await oauthService.exchangeCodeForToken(
+  > {
+    const tokenResult = await this.exchangeCodeForToken(
       session.provider,
-      session.code,
+      code,
       session.verifier,
     )
     if (!tokenResult.ok) {
       return Result.error(tokenResult.error)
     }
-    const userInfo = await userInfoService.fetchUserInfo(
+    const userInfo = await this.userInfoService.fetchUserInfo(
       session.provider,
       tokenResult.data.accessToken,
     )
@@ -74,13 +134,13 @@ const oauthService = {
       userInfo: userInfo.data,
       session: session,
     })
-  },
-  exchangeCodeForToken: async (
+  }
+  private async exchangeCodeForToken(
     provider: OAuthProvider,
     code: string,
     codeVerifier: string,
-  ): Promise<Result<OAuthTokens, OAuthFailedToAuthenticateError>> => {
-    const config = oauthConfig[provider]
+  ): Promise<Result<OAuthTokens, OAuthFailedToAuthenticateError>> {
+    const config = this.oauthConfig[provider]
 
     try {
       const body = new URLSearchParams({
@@ -100,7 +160,7 @@ const oauthService = {
         body,
       })
       if (!response.ok) {
-        logger.error(
+        this.logger.error(
           `OAuth token exchange error for ${provider}:`,
           await response.text(),
         )
@@ -115,88 +175,92 @@ const oauthService = {
         scope: data.scope,
       })
     } catch (error) {
-      logger.error(`OAuth token exchange error for ${provider}:`, error)
+      this.logger.error(`OAuth token exchange error for ${provider}:`, error)
       return Result.error(new OAuthFailedToAuthenticateError(provider))
     }
-  },
-  authenticateOAuthAccount: async (
+  }
+  private async authenticateOAuthAccount(
     session: OAuthSession,
     userInfo: OAuthUserInfo,
-  ): Promise<Result<OAuth & { user: User }, Error>> => {
+  ) {
     if (!userInfo.email) {
       return Result.error(new OAuthEmailNotProvidedError())
     }
-    let oauthAccount = await oauthService.getOAuthAccount(
-      userInfo.providerId,
-      session.provider,
+    let oauthAccount = await Result.valueAsync(
+      this.oauthRepository.findByIdAndType(
+        userInfo.providerId,
+        session.provider,
+        {
+          user: true,
+        },
+      ),
     )
     if (!oauthAccount) {
-      oauthAccount = await oauthService.createOAuthAccount(
+      const newAccount = await this.createOAuthAccount(
         userInfo.email,
         userInfo.emailVerified,
         session.provider,
         userInfo.providerId,
         userInfo.username,
       )
+      if (!newAccount.ok) return newAccount
+
+      oauthAccount = newAccount.data
     }
     if (!!userInfo.username && userInfo.username !== oauthAccount.username) {
-      await oauthService.updateOAuthUsername(oauthAccount.id, userInfo.username)
+      await this.oauthRepository.updateUsernameById(
+        oauthAccount.id,
+        userInfo.username,
+      )
     }
     return Result.success(oauthAccount)
-  },
-  getOAuthAccount: async (
-    providerId: string,
-    provider: OAuthProvider,
-  ): Promise<(OAuth & { user: User }) | null> => {
-    return await database.client.oAuth.findUnique({
-      where: {
-        provider_provider_id: {
-          provider,
-          provider_id: providerId,
-        },
-      },
-      include: { user: true },
-    })
-  },
-  createOAuthAccount: async (
+  }
+  private async createOAuthAccount(
     email: string,
     isVerified: boolean,
     provider: OAuthProvider,
     providerId: string,
     username?: string,
-  ): Promise<OAuth & { user: User }> => {
-    const userResult = await userService.getUserByEmail(email)
-    let user = userResult.ok ? userResult.data : null
-
-    if (!user) {
-      user = await userService.createNewUser(email, isVerified)
+  ): Promise<
+    Result<OAuth & { user: User }, DatabaseError | UnexpectFailedOperation>
+  > {
+    try {
+      return this.unitOfWork.run(async (tx) => {
+        let user = await Result.valueAsync(
+          this.userRepository.getByEmail(email, undefined, tx),
+        )
+        if (!user) {
+          user = await Result.orThrowAsync(
+            this.userRepository.create(
+              {
+                email,
+                isVerified,
+              },
+              tx,
+            ),
+          )
+        }
+        if (!user.is_verified && isVerified) {
+          await Result.orThrowAsync(this.userRepository.verifyById(user.id, tx))
+        }
+        return await Result.successOrThrowAsync(
+          this.oauthRepository.create(
+            user.id,
+            provider,
+            providerId,
+            username,
+            tx,
+          ),
+        )
+      })
+    } catch {
+      return Result.error(new UnexpectFailedOperation("CreateOAuthAccount"))
     }
-    if (!user.is_verified && isVerified) {
-      await userService.verifyUser(user.id)
-    }
-    return await database.client.oAuth.create({
-      data: {
-        user_id: user.id,
-        provider,
-        provider_id: providerId,
-        username: username,
-      },
-      include: {
-        user: true,
-      },
-    })
-  },
-  updateOAuthUsername: async (oauthId: string, username: string) => {
-    await database.client.oAuth.update({
-      where: {
-        id: oauthId,
-      },
-      data: {
-        username,
-      },
-    })
-  },
-  generatePKCE: () => {
+  }
+  private generateState() {
+    return crypto.randomBytes(32).toString("base64url")
+  }
+  private generatePKCE() {
     const verifier = crypto.randomBytes(32).toString("base64url")
     const challenge = crypto
       .createHash("sha256")
@@ -204,13 +268,13 @@ const oauthService = {
       .digest("base64url")
 
     return { verifier, challenge }
-  },
-  disconnectOAuthProvider: async (userId: string, provider: OAuthProvider) => {
-    const user = await userService.getUserById(userId, { oauths: true })
+  }
+  async disconnectOAuthProvider(userId: string, provider: OAuthProvider) {
+    const user = await this.userRepository.getById(userId, { oauths: true })
 
-    if (!user.ok) {
-      return VoidResult.error(user.error)
-    }
+    if (!user.ok) return user
+    if (!user.data) return VoidResult.error(new UserNotFoundError())
+
     const oauth = user.data.oauths.find((o) => o.provider === provider)
 
     if (!oauth) {
@@ -222,30 +286,65 @@ const oauthService = {
     if (!hasPassword && remainingOAuthCount === 0) {
       return VoidResult.error(new OAuthDisconnectNotPossibleError(provider))
     }
-    await database.client.oAuth.delete({
-      where: {
-        id: oauth.id,
-      },
-    })
+    const deletion = await this.oauthRepository.deleteById(oauth.id)
+    if (!deletion.ok) return deletion
+
     return VoidResult.ok()
-  },
+  }
+  private createUrlSearchParams(
+    config: OAuthProviderConfig,
+    state: string,
+    codeChallenge: string,
+  ): URLSearchParams {
+    return new URLSearchParams({
+      client_id: config.clientId,
+      redirect_uri: config.redirectUri,
+      response_type: "code",
+      scope: config.scope,
+      state,
+      code_challenge: codeChallenge,
+      code_challenge_method: "S256",
+      prompt: "consent",
+    })
+  }
 }
+export type IOAuthService = Pick<OAuthService, keyof OAuthService>
 
-const createUrlSearchParams = (
-  config: OAuthConfig,
-  state: string,
-  codeChallenge: string,
-): URLSearchParams => {
-  return new URLSearchParams({
-    client_id: config.clientId,
-    redirect_uri: config.redirectUri,
-    response_type: "code",
-    scope: config.scope,
-    state,
-    code_challenge: codeChallenge,
-    code_challenge_method: "S256",
-    prompt: "consent",
-  })
-}
-
-export default oauthService
+/*
+const oauthService = {
+  createOAuthAccount: async (
+    email: string,
+    isVerified: boolean,
+    provider: OAuthProvider,
+    providerId: string,
+    username?: string,
+  ): Promise<Result<OAuth & { user: User }, DatabaseError>> =>
+    Result.tryCatchAsync(
+      () =>
+        database.client.$transaction(async (client) => {
+          let user = await Result.valueAsync(
+            userRepository.getByEmailOrError(email, undefined, client),
+          )
+          if (!user) {
+            user = await Result.orThrowAsync(
+              userRepository.create(email, isVerified, client),
+            )
+          }
+          if (!user.is_verified && isVerified) {
+            await Result.orThrowAsync(
+              userRepository.verifyUser(user.id, client),
+            )
+          }
+          return await Result.successOrThrowAsync(
+            oauthRepository.create(
+              user.id,
+              provider,
+              providerId,
+              username,
+              client,
+            ),
+          )
+        }),
+      () => new UnexpectFailedOperation("Create_OAuth_Account"),
+    ),
+}*/

@@ -1,25 +1,34 @@
-import logger from "@shared/logger"
+import { ILogger } from "@shared/logger"
 import chalk from "chalk"
 import { Redis } from "@upstash/redis"
-import { env } from "@base/app"
 
-const redis = new Redis({
-  url: env.get.UPSTASH_REDIS_REST_URL,
-  token: env.get.UPSTASH_REDIS_REST_TOKEN,
-})
+export default class AppRedis {
+  #client: Redis | null = null
 
-redis
-  .ping()
-  .then(() => {
-    logger.success(chalk.red("Redis"), chalk.yellow("App"), "connected.")
-  })
-  .catch((err) => {
-    logger.error(
-      chalk.red("Redis"),
-      chalk.yellow("App"),
-      "connection failed:",
-      err,
-    )
-  })
+  constructor(private readonly logger: ILogger) {}
 
-export default redis
+  async connect(url: string, token: string): Promise<void> {
+    this.#client = new Redis({ url, token })
+
+    try {
+      await this.#client.ping()
+      this.logger.success(chalk.red("Redis"), chalk.yellow("App"), "connected.")
+    } catch (err) {
+      this.logger.error(
+        chalk.red("Redis"),
+        chalk.yellow("App"),
+        "connection failed:",
+        err,
+      )
+      throw err
+    }
+  }
+  disconnect(): void {
+    this.#client = null
+  }
+  get client(): Redis {
+    if (!this.#client) throw new Error("App Redis not connected.")
+    return this.#client
+  }
+}
+export type IAppRedis = Pick<AppRedis, "client">

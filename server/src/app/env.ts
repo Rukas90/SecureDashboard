@@ -1,4 +1,4 @@
-class Environment {
+export default class Environment {
   get: ((key: string) => string) & Record<string, string>
 
   constructor() {
@@ -45,6 +45,7 @@ class Environment {
   }
 }
 
-let env: Environment = new Environment()
-
-export default env
+export type IEnvironment = Pick<
+  Environment,
+  "get" | "getArray" | "getOptional" | "getOr"
+>

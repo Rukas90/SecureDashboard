@@ -2,45 +2,51 @@ import nodemailer from "nodemailer"
 import { MailOptions } from "./mailer.type"
 import type { Transporter } from "nodemailer"
 import { VoidResult } from "@project/shared"
-import logger from "../logger"
-import { env } from "@base/app"
+import { IEnvironment } from "@base/app"
+import { FailedToSendMail } from "./mailer.error"
 
-let transporter: Transporter | null = null
+export class MailerService {
+  private readonly transporter: Transporter
+  private senderEmailAddress: string
+  private isClosed: boolean = false
 
-export const getTransporter = () => {
-  if (!transporter) {
-    transporter = nodemailer.createTransport({
-      service: env.get.SENDER_MAIL_SERVICE,
+  constructor(environment: IEnvironment) {
+    this.senderEmailAddress = environment.get.SENDER_EMAIL_ADDRESS
+
+    this.transporter = nodemailer.createTransport({
+      service: environment.get.SENDER_MAIL_SERVICE,
       auth: {
-        user: env.get.SENDER_EMAIL_ADDRESS,
-        pass: env.get.SENDER_EMAIL_PASSWORD,
+        user: this.senderEmailAddress,
+        pass: environment.get.SENDER_EMAIL_PASSWORD,
       },
     })
   }
-  return transporter
-}
-export const send = async (
-  options: MailOptions,
-): Promise<VoidResult<Error>> => {
-  try {
-    await getTransporter().sendMail({
-      from: env.get.SENDER_EMAIL_ADDRESS,
-      to: options.recipient,
-      subject: options.subject,
-      text: options.text,
-      html: options.html,
-    })
-    return VoidResult.ok()
-  } catch (error) {
-    logger.error("Send mail failed. ", error)
-    if (error instanceof Error) {
-      return VoidResult.error(error)
+  async send(options: MailOptions) {
+    if (this.isClosed) {
+      return VoidResult.error(
+        new FailedToSendMail(
+          "Email could cannot be sent. Transporter is closed.",
+        ),
+      )
     }
-    return VoidResult.error(new Error("Email was not sent successfully."))
+    try {
+      await this.transporter.sendMail({
+        from: this.senderEmailAddress,
+        to: options.recipient,
+        subject: options.subject,
+        text: options.text,
+        html: options.html,
+      })
+      return VoidResult.ok()
+    } catch (error) {
+      return VoidResult.error(
+        new FailedToSendMail("Email was not sent successfully."),
+      )
+    }
+  }
+  close() {
+    this.transporter.close()
+    this.isClosed = true
   }
 }
-const Mailer = {
-  getTransporter,
-  send,
-}
-export default Mailer
+export type IMailerService = Pick<MailerService, "send">

@@ -13,6 +13,7 @@ const useUserProfile = () => {
   return {
     ...query,
     profile: query.data,
+    isProfileLoading: query.isLoading,
   }
 }
 export default useUserProfile

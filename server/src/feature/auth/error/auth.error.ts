@@ -56,3 +56,11 @@ export class AuthInvalidSessionError extends AccessForbiddenError {
     )
   }
 }
+export class AuthFailedError extends UnexpectedError {
+  constructor() {
+    super(
+      "Authentication has unexpectedly failed to establish.",
+      AuthErrorCodes.AUTH_FAILED,
+    )
+  }
+}

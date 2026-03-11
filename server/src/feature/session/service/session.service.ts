@@ -1,86 +1,41 @@
-import { database } from "@base/app"
 import { UserSession } from "@prisma/client"
-import { Result, SessionStatus } from "@project/shared"
-import { SessionNotFoundError } from "../error/session.error"
-import { UserSessionWhereUniqueInput } from "prisma/generated/models"
+import { Result, SessionDetails, SessionStatus } from "@project/shared"
+import { ISessionRepository } from "../repository/session.repository"
+import { parseLocation, parseUserAgent } from "../util/session.util"
 
-export type SessionContext = {
-  userAgent: string
-  ipAddress: string
-  location?: string
-}
+export class SessionService {
+  constructor(private readonly sessionRepository: ISessionRepository) {}
 
-const sessionService = {
-  createSession: async (
-    familyId: string,
-    userId: string,
-    context: SessionContext | undefined | null,
-    expiresAt: Date,
-  ): Promise<UserSession> => {
-    return await database.client.userSession.create({
-      data: {
-        family_id: familyId,
-        user_id: userId,
-        user_agent: context?.userAgent ?? "",
-        ip_address: context?.ipAddress ?? "",
-        location: context?.location,
-        expires_at: expiresAt,
-      },
-    })
-  },
-  getSessionById: async (
-    sessionId: string,
-  ): Promise<Result<UserSession, SessionNotFoundError>> => {
-    const session = await database.client.userSession.findUnique({
-      where: {
-        id: sessionId,
-      },
-    })
-    return !!session
-      ? Result.success(session)
-      : Result.error(new SessionNotFoundError())
-  },
-  getSession: async (
-    where: UserSessionWhereUniqueInput,
-  ): Promise<Result<UserSession, SessionNotFoundError>> => {
-    const session = await database.client.userSession.findUnique({
-      where,
-    })
-    return !!session
-      ? Result.success(session)
-      : Result.error(new SessionNotFoundError())
-  },
-  getSessions: async (userId: string) => {
-    return await database.client.userSession.findMany({
-      where: {
-        user_id: userId,
-      },
-      orderBy: { last_accessed_at: "desc" },
-    })
-  },
-  refreshSession: async (familyId: string, userId: string, expiresAt: Date) => {
-    return await database.client.userSession.update({
-      where: {
-        family_id: familyId,
-        user_id: userId,
-      },
-      data: {
-        last_accessed_at: new Date(),
-        expires_at: expiresAt,
-      },
-    })
-  },
-  revokeSession: async (familyId: string) => {
-    return await database.client.userSession.update({
-      where: {
-        family_id: familyId,
-      },
-      data: {
-        revoked: true,
-      },
-    })
-  },
-  getSessionStatus: (session: UserSession): SessionStatus => {
+  async getSessions(userId: string, familyId: string) {
+    const sessions = await this.sessionRepository.getAllByUserId(userId)
+    if (!sessions.ok) return sessions
+
+    if (!sessions.data) {
+      return Result.success([])
+    }
+    const activeSessions = sessions.data.filter(
+      (s) => this.getSessionStatus(s) === "active",
+    )
+    const staleSessions = sessions.data
+      .filter((s) => this.getSessionStatus(s) !== "active")
+      .slice(0, 2)
+
+    return Result.success(
+      [...activeSessions, ...staleSessions].map(
+        (session): SessionDetails => ({
+          id: session.id,
+          status: this.getSessionStatus(session),
+          isCurrent: session.family_id === familyId,
+          user_agent: parseUserAgent(session.user_agent),
+          ip_address: session.ip_address,
+          location: parseLocation(session.location, session.ip_address),
+          created_at: session.created_at,
+          last_accessed_at: session.last_accessed_at,
+        }),
+      ),
+    )
+  }
+  getSessionStatus(session: UserSession): SessionStatus {
     if (session.revoked) {
       return "revoked"
     }
@@ -88,7 +43,9 @@ const sessionService = {
       return "expired"
     }
     return "active"
-  },
+  }
 }
-
-export default sessionService
+export type ISessionService = Pick<
+  SessionService,
+  "getSessionStatus" | "getSessions"
+>

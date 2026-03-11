@@ -3,7 +3,7 @@ import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import UserService from "../services/UserService"
 import { useAuthContext } from "@src/features/auth"
-import { toast } from "react-toastify"
+import { toast } from "@src/lib"
 
 const DeleteAccountButton = () => {
   const { setUser } = useAuthContext()
@@ -16,7 +16,7 @@ const DeleteAccountButton = () => {
       .then((res) => {
         if (res.ok) {
           setUser(null)
-          toast("The account was deleted successfully!")
+          toast.success("The account was deleted successfully!")
         }
       })
       .finally(() => {

@@ -1,8 +1,15 @@
 import { ToastContainer } from "react-toastify"
 import AppProviders from "./AppProviders"
 import AppRouter from "./AppRouter"
+import { AppStartingView } from "@src/routes"
+import useServerHealth from "./hooks/useServerHealth"
 
 const App = () => {
+  const { isSuccess } = useServerHealth()
+
+  if (!isSuccess) {
+    return <AppStartingView />
+  }
   return (
     <AppProviders>
       <AppRouter />

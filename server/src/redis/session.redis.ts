@@ -1,26 +1,41 @@
-import { env } from "@base/app"
-import logger from "@base/shared/logger"
+import { ILogger } from "@shared/logger"
 import chalk from "chalk"
 import { createClient } from "redis"
 
-export const redis = createClient({
-  url: env.get.UPSTASH_REDIS_SESSION_URL,
-})
+type SessionRedisClient = ReturnType<typeof createClient>
 
-await redis.connect()
+export default class SessionRedis {
+  #client: SessionRedisClient | null = null
 
-redis
-  .ping()
-  .then(() => {
-    logger.success(chalk.red("Redis"), chalk.yellow("App"), "connected.")
-  })
-  .catch((err) => {
-    logger.error(
-      chalk.red("Redis"),
-      chalk.yellow("App"),
-      "connection failed:",
-      err,
-    )
-  })
+  constructor(private readonly logger: ILogger) {}
 
-export default redis
+  async connect(url: string): Promise<void> {
+    this.#client = createClient({ url })
+
+    try {
+      await this.#client.connect()
+      await this.#client.ping()
+      this.logger.success(
+        chalk.red("Redis"),
+        chalk.yellow("Session"),
+        "connected.",
+      )
+    } catch (err) {
+      this.logger.error(
+        chalk.red("Redis"),
+        chalk.yellow("Session"),
+        "connection failed:",
+        err,
+      )
+      throw err
+    }
+  }
+  async disconnect(): Promise<void> {
+    await this.#client?.quit()
+    this.#client = null
+  }
+  get client(): SessionRedisClient {
+    if (!this.#client) throw new Error("Session Redis not connected.")
+    return this.#client
+  }
+}

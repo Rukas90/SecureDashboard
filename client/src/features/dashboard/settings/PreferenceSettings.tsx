@@ -15,7 +15,7 @@ const PreferenceSettings = () => {
           <SectionText>{t("LANGUAGE")}</SectionText>
         </div>
 
-        <div className="h-full px-4 py-3 bg-stone-900">
+        <div className="h-full xs:px-4 px-2 xs:py-3 py-2 bg-stone-900">
           <LanguagePicker />
         </div>
       </OutlineBoxContainer>

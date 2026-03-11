@@ -1,11 +1,9 @@
 import { AppErrorCodes } from "@project/shared"
 import { UnexpectedError } from "./system.error"
 
-export class DatabaseError extends UnexpectedError {
+export class UnexpectFailedOperation extends UnexpectedError {
   constructor(operation?: string) {
-    const message = operation
-      ? `Database operation failed: ${operation}`
-      : "Database operation failed"
-    super(message, AppErrorCodes.APP_DATABASE_ERROR)
+    const message = `The executing operation has unexpectedly failed. The operation: ${operation ?? "Unspecified"}.`
+    super(message, AppErrorCodes.APP_OPERATION_ERROR)
   }
 }

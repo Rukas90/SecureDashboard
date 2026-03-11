@@ -1,3 +1,3 @@
-export { default as appRedis } from "./app.redis"
-export { default as eventsRedis } from "./events.redis"
-export { default as sessionRedis } from "./session.redis"
+export { default as AppRedis, type IAppRedis } from "./app.redis"
+export { default as CloudRedis } from "./cloud.redis"
+export { default as SessionRedis } from "./session.redis"

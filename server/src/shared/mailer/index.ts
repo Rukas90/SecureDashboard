@@ -1,2 +1,2 @@
 export type { MailOptions } from "./mailer.type"
-export { default as Mailer } from "./mailer.service"
+export { MailerService, type IMailerService } from "./mailer.service"

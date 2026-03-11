@@ -6,6 +6,7 @@ export const AuthErrorCodes = {
   AUTH_EMAIL_ALREADY_EXISTS: "AUTH_EMAIL_ALREADY_EXISTS",
   AUTH_REGISTRATION_FAILED: "AUTH_REGISTRATION_FAILED",
   AUTH_INVALID_SESSION: "AUTH_INVALID_SESSION",
+  AUTH_FAILED: "AUTH_FAILED",
 } as const
 
 export type AuthErrorCode = (typeof AuthErrorCodes)[keyof typeof AuthErrorCodes]

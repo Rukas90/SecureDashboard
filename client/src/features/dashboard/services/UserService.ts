@@ -22,9 +22,6 @@ const UserService = {
   async getSessions(): Promise<ApiResult<SessionDetails[]>> {
     return HTTP.GET<SessionDetails[]>("/v1/user/sessions")
   },
-  async revokeSession(sessionId: string): Promise<ApiResult<string>> {
-    return HTTP.DELETE<string>(`/v1/user/${sessionId}`)
-  },
   async deleteAccount(): Promise<ApiResult<void>> {
     return HTTP.DELETE<void>("/v1/user")
   },

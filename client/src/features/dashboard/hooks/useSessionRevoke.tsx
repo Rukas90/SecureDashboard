@@ -1,12 +1,12 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import UserService from "../services/UserService"
+import SessionService from "../services/SessionService"
 
 const useSessionRevoke = () => {
   const queryClient = useQueryClient()
   const mutation = useMutation({
     mutationKey: ["session", "revoke"],
     mutationFn: async (sessionId: string) => {
-      const res = await UserService.revokeSession(sessionId)
+      const res = await SessionService.revokeSession(sessionId)
       if (!res.ok) {
         throw res.error
       }

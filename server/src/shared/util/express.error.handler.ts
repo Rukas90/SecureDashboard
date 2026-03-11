@@ -1,7 +1,7 @@
 import { NextFunction, Request, RequestHandler, Response } from "express"
 import { AuthRequest } from "./authenticated.request"
 
-export const asyncRoute = (
+export const asyncController = (
   fn: (req: Request, res: Response, next: NextFunction) => Promise<any>,
 ): RequestHandler => {
   return (req: Request, res: Response, next: NextFunction) => {
@@ -9,7 +9,7 @@ export const asyncRoute = (
   }
 }
 
-export const authRoute = (
+export const authController = (
   fn: (req: AuthRequest, res: Response, next: NextFunction) => Promise<any>,
 ): RequestHandler => {
   return (req: Request, res: Response, next: NextFunction) => {
@@ -17,7 +17,7 @@ export const authRoute = (
   }
 }
 
-export const syncRoute = (
+export const syncController = (
   fn: (req: Request, res: Response, next: NextFunction) => any,
 ): RequestHandler => {
   return (req: Request, res: Response, next: NextFunction) => {
@@ -29,7 +29,7 @@ export const syncRoute = (
   }
 }
 
-export const authSyncRoute = (
+export const authSyncController = (
   fn: (req: AuthRequest, res: Response, next: NextFunction) => any,
 ): RequestHandler => {
   return (req: Request, res: Response, next: NextFunction) => {

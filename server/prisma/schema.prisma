@@ -92,7 +92,7 @@ model UserSession {
 
 model Verification {
   id                String   @id @default(uuid())
-  dispatch_type     String
+  event_type        String
   payload_encrypted String?
   code_hash         String   @unique
   lookup_hash       String   @unique
@@ -102,6 +102,6 @@ model Verification {
   user              User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@index([user_id])
-  @@index([user_id, dispatch_type])
+  @@index([user_id, event_type])
   @@index([user_id, lookup_hash])
 }

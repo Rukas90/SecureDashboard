@@ -1,8 +1,9 @@
 import { domainErrorToProblemDetails, DomainError } from "@shared/errors"
-import { config } from "@base/app"
-import { NextFunction, Request, Response } from "express"
+import { AppConfig } from "@base/app"
+import { NextFunction, Request, RequestHandler, Response } from "express"
 import { ProblemDetails } from "@project/shared"
-import logger from "../logger"
+import { ZodError } from "zod"
+import { ILogger } from "../logger"
 
 const INTERNAL_ERROR_DETAILS = (
   type: string,
@@ -17,28 +18,41 @@ const INTERNAL_ERROR_DETAILS = (
     instance: request.originalUrl,
   }
 }
-export const endpointErrorHandler = (
-  error: Error | unknown,
-  request: Request,
-  response: Response,
-  _: NextFunction,
-) => {
-  if (!(error instanceof Error)) {
-    return response.problem(INTERNAL_ERROR_DETAILS("unknown", request))
-  }
-  if (error instanceof DomainError) {
-    return response.problem(
-      domainErrorToProblemDetails(
-        error,
-        config().isDevelopment,
-        request.originalUrl,
-      ),
-    )
-  }
-  logger.error("Unexpected error", error)
+export const createEndpointErrorHandler =
+  (config: AppConfig, logger: ILogger) =>
+  (
+    error: Error | unknown,
+    request: Request,
+    response: Response,
+    _: NextFunction,
+  ) => {
+    if (!(error instanceof Error)) {
+      return response.problem(INTERNAL_ERROR_DETAILS("unknown", request))
+    }
+    if (error instanceof DomainError) {
+      return response.problem(
+        domainErrorToProblemDetails(
+          error,
+          config.isDevelopment,
+          request.originalUrl,
+        ),
+      )
+    }
+    if (error instanceof ZodError) {
+      // TODO: REMOVE THIS AND HANDLE ZOD ERRORS OUTSIDE
+      return response.problem({
+        status: 400,
+        type: "validation-error",
+        title: "Validation Error",
+        detail: error.issues[0].message,
+        code: "VALIDATION_ERROR",
+        instance: request.originalUrl,
+      })
+    }
+    logger.error("Unexpected error", error)
 
-  return response.problem({
-    ...INTERNAL_ERROR_DETAILS("internal-error", request),
-    ...(config().isDevelopment && { stack: error.stack }),
-  })
-}
+    return response.problem({
+      ...INTERNAL_ERROR_DETAILS("internal-error", request),
+      ...(config.isDevelopment && { stack: error.stack }),
+    })
+  }

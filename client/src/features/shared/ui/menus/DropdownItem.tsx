@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
 import { useDropdown } from "./contexts/DropdownContext"
+import clsx from "clsx"
 
 interface Props {
   content: string | ReactNode
@@ -17,7 +18,12 @@ const DropdownItem = ({ content, onSelected, disabled = false }: Props) => {
     <button
       disabled={disabled}
       onClick={handleClick}
-      className="flex px-2 py-1 text-stone-300 hover:bg-stone-700 transition-colors"
+      className={clsx(
+        "flex px-2 py-1",
+        disabled
+          ? "text-stone-500"
+          : "text-stone-300 hover:bg-stone-700 transition-colors",
+      )}
     >
       {content}
     </button>

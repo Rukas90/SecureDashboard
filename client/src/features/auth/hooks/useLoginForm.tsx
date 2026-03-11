@@ -3,12 +3,13 @@ import type z from "zod"
 import useAuthForm from "./useAuthForm"
 import useLogin from "./useLogin"
 
-const useLoginForm = () => {
+const useLoginForm = (onError?: (error: string) => void) => {
   const login = useLogin()
 
   const handleLogin = async (data: LoginData): Promise<VoidResult<string>> => {
     const result = await login(data)
     if (!result.ok) {
+      onError?.(result.error.detail)
       return VoidResult.error(result.error.detail)
     }
     return VoidResult.ok()

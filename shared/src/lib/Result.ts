@@ -35,7 +35,59 @@ export const Result = {
   ): void {
     return result.ok ? onSuccess(result.data) : onFailure(result.error)
   },
+  orThrow<T, E>(result: Result<T, E>, onError?: (err: E) => void): T {
+    if (!result.ok) {
+      onError?.(result.error)
+      throw result.error
+    }
+    return result.data
+  },
+  orThrowAsync: async <T, E>(
+    promise: Promise<Result<T, E> | (Failure<E> | Success<T>)>,
+  ): Promise<T> => {
+    const result = await promise
+    if (!result.ok) {
+      throw result.error
+    }
+    return result.data
+  },
+  orErrAsync: async <T, E, F>(
+    promise: Promise<Result<T, E>>,
+    onError: (err: E) => F,
+  ): Promise<Result<T, F>> => {
+    const result = await promise
+    if (!result.ok) {
+      return Result.error(onError(result.error))
+    }
+    return Result.success(result.data)
+  },
+  value: <T, E>(result: Result<T, E>): T | null => {
+    if (result.ok) {
+      return result.data
+    }
+    return null
+  },
+  valueAsync: async <T, E>(
+    promise: Promise<Result<T, E>>,
+  ): Promise<T | null> => {
+    const result = await promise
+
+    if (result.ok) {
+      return result.data
+    }
+    return null
+  },
+  successOrThrowAsync: async <T, E>(
+    promise: Promise<Result<T, E>>,
+  ): Promise<Success<T>> => {
+    const result = await promise
+    if (!result.ok) {
+      throw result.error
+    }
+    return Result.success(result.data)
+  },
 }
+
 export type VoidResult<E = unknown> = Result<void, E>
 
 export const VoidResult = {

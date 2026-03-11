@@ -2,7 +2,7 @@ import { MessageBox, LinkText } from "@features/shared"
 
 const TotpHelpInfo = () => {
   return (
-    <MessageBox label="Don't have an authenticator app?">
+    <MessageBox label="Don't have an authenticator app?" className="mt-2">
       Download an authenticator app like
       <span> </span>
       <span className="italic">Google Authenticator</span>

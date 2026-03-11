@@ -11,9 +11,9 @@ interface Props extends Pick<
 
 const styleMap: Record<TagLabelStyle, string> = {
   amber: "text-amber-400 border-amber-700 bg-amber-950",
-  red: "text-red-400 border-red-700 bg-red-950",
-  green: "text-green-400 border-green-700 bg-green-950",
-  gray: "text-gray-400 border-gray-700 bg-gray-950",
+  red: "text-red-400 border-red-800 bg-red-950",
+  green: "text-green-400 border-green-800 bg-green-950",
+  gray: "text-gray-400 border-gray-800 bg-gray-950",
 }
 
 const TagLabel = ({ style = "amber", className, children }: Props) => {

@@ -1,4 +1,4 @@
-import { FullSizeContainer } from "@features/shared"
+import { FullSizeContainer, Line } from "@features/shared"
 import SettingsPanel from "../components/SettingsPanel"
 import SettingsSection from "../components/SettingsSection"
 import SettingsContent from "../components/SettingsContent"
@@ -16,7 +16,7 @@ const AccountSettings = () => {
         <SettingsSection label={t("ACCOUNT")}>
           <SettingsContent className="flex-col">
             <AccountEmail />
-            <div className="w-full h-px bg-stone-900" />
+            <Line />
             <AccountPassword />
           </SettingsContent>
         </SettingsSection>

@@ -141,7 +141,7 @@ const CodeField = ({
             }}
             id={`digit-${index}`}
             key={`CodeField_Value_${index}`}
-            className="w-8 mx-1 rounded-sm text-center p-1.5 text-stone-300 bg-stone-800 hover:bg-stone-700 focus:bg-stone-700 outline-amber-400 focus:outline-2 transition"
+            className="xs:w-8 w-6.75 xs:text-base text-sm mx-1 rounded-sm text-center p-1.5 text-stone-300 bg-stone-800 hover:bg-stone-700 focus:bg-stone-700 outline-amber-400 focus:outline-2 transition"
             value={value}
             placeholder={placeholder}
             type={hidden ? "password" : "text"}
@@ -162,7 +162,7 @@ const CodeField = ({
             data-np-autofill-mfa-last="0"
           />
         ))}
-        <div className="absolute left-[101.5%] top-1/2 -translate-y-1/2 mt-0.5">
+        <div className="xs:absolute xs:left-[101.5%] xs:top-1/2 xs:-translate-y-1/2 xs:mt-0.5 mt-1 xs:ml-auto ml-1">
           <VisibilityToggleIcon isHidden={hidden} onToggled={setHidden} />
         </div>
       </div>

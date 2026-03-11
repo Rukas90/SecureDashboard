@@ -61,6 +61,7 @@ const InputVariants = {
 interface Props extends Pick<React.ComponentProps<"div">, "id" | "className"> {
   name?: string | undefined
   value?: string | readonly string[] | number | undefined
+  maxLength?: number
   onValueChanged?: (newValue: string) => void
   type?: HTMLInputTypeAttribute | undefined
   placeholder?: string | undefined
@@ -71,11 +72,15 @@ interface Props extends Pick<React.ComponentProps<"div">, "id" | "className"> {
   indicateError?: boolean
   expandable?: boolean
   variant?: InputVariant
+  pattern?: string
+  required?: boolean
+  readonly?: boolean
 }
 const InputField = ({
   id,
   name,
   value = undefined,
+  maxLength,
   onValueChanged,
   type = "text",
   placeholder = "Input",
@@ -87,6 +92,9 @@ const InputField = ({
   indicateError,
   expandable = true,
   variant = "default",
+  pattern,
+  required,
+  readonly,
 }: Props) => {
   const [text, setText] = useState(value || "")
   const [hidden, setHidden] = useState(hideable && isHidden)
@@ -118,7 +126,7 @@ const InputField = ({
         <label
           htmlFor={id}
           className={clsx(
-            "absolute pointer-events-none transition-all left-3",
+            "absolute pointer-events-none transition-all left-3 xs:text-sm! text-xs! xs:font-normal font-medium",
             expand ? config.label.expanded : config.label.default,
             expand
               ? "text-stone-500 top-1.5 translate-y-0"
@@ -140,8 +148,12 @@ const InputField = ({
           "bg-transparent border-0 outline-0 h-auto text-stone-200 p-0 m-0",
           expand && config.input.expanded,
           className,
-          extendWidth && "w-100",
+          extendWidth && "w-full",
         )}
+        maxLength={maxLength}
+        pattern={pattern}
+        required={required}
+        readOnly={readonly}
       />
       {hideable && (
         <VisibilityToggleIcon isHidden={hidden} onToggled={setHidden} />

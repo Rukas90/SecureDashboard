@@ -7,6 +7,8 @@ import {
   useAuthContext,
   useTokenRefresh,
 } from "@features/auth"
+import { SudoRoute } from "@features/sudo"
+import { IconSpinner } from "@features/shared"
 
 const LoginView = lazy(() =>
   import("@features/auth").then((m) => ({ default: m.LoginView })),
@@ -43,6 +45,9 @@ const MfaAuthView = lazy(() =>
 const TotpLogin = lazy(() =>
   import("@features/mfa").then((m) => ({ default: m.TotpLogin })),
 )
+const RecoveryCodesView = lazy(() =>
+  import("@features/mfa").then((m) => ({ default: m.RecoveryCodesView })),
+)
 
 const AppRouter = () => {
   const { isInitialized } = useAuthContext()
@@ -50,7 +55,11 @@ const AppRouter = () => {
   useTokenRefresh()
 
   if (!isInitialized) {
-    return <></>
+    return (
+      <div className="w-full h-full flex items-center justify-center">
+        <IconSpinner className="w-24 text-stone-500 animate-spin" />
+      </div>
+    )
   }
   return (
     <Suspense fallback={<></>}>
@@ -77,7 +86,13 @@ const AppRouter = () => {
             <Route path="preferences" element={<PreferenceSettings />} />
             <Route path="account" element={<AccountSettings />} />
           </Route>
-          <Route path="totp/setup" element={<TotpSetupView />} />
+          <Route element={<SudoRoute />}>
+            <Route path="totp/setup" element={<TotpSetupView />} />
+            <Route
+              path="/settings/auth/recovery-codes"
+              element={<RecoveryCodesView />}
+            />
+          </Route>
         </Route>
         <Route path="*" element={<NotFoundView />} />
       </Routes>

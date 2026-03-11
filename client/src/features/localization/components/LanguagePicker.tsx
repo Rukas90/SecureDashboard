@@ -6,7 +6,7 @@ import {
   SectionText,
 } from "@features/shared"
 import { useLanguageContext } from "../hooks"
-import { toast } from "react-toastify"
+import { toast } from "@src/lib"
 
 const LanguagePicker = () => {
   const { currentLanguage, setLanguage, languages } = useLanguageContext()
@@ -28,9 +28,7 @@ const LanguagePicker = () => {
           <DropdownItem
             key={lang.code}
             onSelected={() => {
-              toast(`Language is changed to ${lang.label}.`, {
-                pauseOnFocusLoss: false,
-              })
+              toast.info(`Language is changed to ${lang.label}.`)
               setLanguage(lang.code)
             }}
             content={

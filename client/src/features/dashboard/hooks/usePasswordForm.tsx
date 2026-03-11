@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useCallback, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import type z from "zod"
 import type { ApiResult } from "@src/lib"
@@ -15,48 +15,64 @@ export const usePasswordForm = <TSchema extends z.ZodType>({
 }: Props<TSchema>) => {
   const queryClient = useQueryClient()
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const [formState, setFormState] = useState<{
+    error: string | null
+    fieldErrors: Record<string, string>
+  }>({ error: null, fieldErrors: {} })
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    setIsSubmitting(true)
+  const clearError = useCallback(() => {
+    setFormState({ error: null, fieldErrors: {} })
+  }, [setFormState])
 
-    const formData = new FormData(e.currentTarget)
-    const data = Object.fromEntries(formData)
+  const handleSubmit = useCallback(
+    async (e: React.FormEvent<HTMLFormElement>) => {
+      e.preventDefault()
+      setIsSubmitting(true)
 
-    try {
-      const validation = await schema.safeParseAsync(data)
+      const formData = new FormData(e.currentTarget)
+      const data = Object.fromEntries(formData)
 
-      if (!validation.success) {
-        const errors: Record<string, string> = {}
-        validation.error.issues.forEach((issue) => {
-          if (issue.path[0]) {
-            errors[issue.path[0].toString()] = issue.message
-          }
+      try {
+        const validation = await schema.safeParseAsync(data)
+
+        if (!validation.success) {
+          const errors: Record<string, string> = {}
+          validation.error.issues.forEach((issue) => {
+            if (issue.path[0]) {
+              errors[issue.path[0].toString()] = issue.message
+            }
+          })
+          setFormState({
+            error: validation.error.issues[0].message,
+            fieldErrors: errors,
+          })
+          return
+        }
+        const response = await requestFn(validation.data)
+        let error: string | null = null
+
+        if (!response.ok) {
+          error = response.error.detail
+        } else {
+          queryClient.invalidateQueries({ queryKey: ["user", "profile"] })
+          onSuccess?.()
+        }
+        setFormState({
+          error,
+          fieldErrors: {},
         })
-        setError(validation.error.issues[0].message)
-        setFieldErrors(errors)
-        return
+      } finally {
+        setIsSubmitting(false)
       }
-      setFieldErrors({})
-      const response = await requestFn(validation.data)
+    },
+    [schema, requestFn, onSuccess],
+  )
 
-      if (!response.ok) {
-        setError(response.error.detail)
-      } else {
-        queryClient.invalidateQueries({ queryKey: ["user", "profile"] })
-        setError(null)
-        onSuccess?.()
-      }
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
   return {
     handleSubmit,
     isSubmitting,
-    error,
-    fieldErrors,
+    error: formState.error,
+    fieldErrors: formState.fieldErrors,
+    clearError,
   }
 }

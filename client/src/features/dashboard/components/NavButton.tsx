@@ -2,8 +2,9 @@ import { NavLink } from "react-router-dom"
 
 interface Props extends Pick<React.ComponentProps<"span">, "children"> {
   to: string
+  onClicked: () => void
 }
-const NavButton = ({ to, children }: Props) => {
+const NavButton = ({ to, onClicked, children }: Props) => {
   return (
     <li>
       <NavLink
@@ -26,7 +27,7 @@ const NavButton = ({ to, children }: Props) => {
             hover:after:bg-stone-200
             `
         } 
-        text-lg 
+        xs:text-lg text-2xl 
         cursor-pointer transition relative inline-block 
         after:content-['']
         after:absolute after:left-0 after:-bottom-1.5
@@ -34,6 +35,7 @@ const NavButton = ({ to, children }: Props) => {
         after:origin-left
         after:transition-transform after:duration-100 after:ease-in-out
         `}
+        onClick={onClicked}
       >
         {children}
       </NavLink>

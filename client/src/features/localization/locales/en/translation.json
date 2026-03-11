@@ -47,6 +47,7 @@
     "CONFIGURED": "Configured",
     "NOT_CONFIGURED": "Not Configured",
     "MFA": "Multi-factor authentication",
+    "MFA_SHORT": "Multi-factor authentication",
     "AUTH_APP": "Authenticator app",
     "EDIT": "Edit",
     "VERIFIED": "Verified",
@@ -75,5 +76,18 @@
     "SET_PASSWORD": "Set Password",
     "UPDATE_PASSWORD": "Update Password",
     "CANCEL": "Cancel",
-    "REVOKE": "Revoke"
+    "REVOKE": "Revoke",
+    "DOWNLOAD": "Download",
+    "CONFIRM_WITH_TOTP": "Use your authenticator app",
+    "CONFIRM_WITH_EMAIL": "Send a code via email",
+    "CONFIRM_WITH_PASSWORD": "Use your password",
+    "CONFIRM_WITH_RECOVERY": "Use a recovery code",
+    "HAVING_PROBLEMS": "Having problems?",
+    "CONFIRM_ACCESS": "Confirm access",
+    "EMAIL_TRIGGER_MESSAGE": "When you are ready, trigger a mailer to verify your identity.",
+    "VERIFICATION_CODE_SENT": "Enter the verification code sent to <email>{{email}}</email>. If it doesn't appear within a few minutes, check your spam folder.",
+    "SUDO_VERIFY_IDENTITY": "Please verify your identity to access this area.",
+    "SUDO_TIP_MESSAGE": "After you've performed a sudo-protected action, you'll only be asked to re-authenticate again after a few hours of inactivity.",
+    "ENTER_CODE": "Enter code",
+    "VERIFY_VIA_EMAIL": "Verify via email"
 }

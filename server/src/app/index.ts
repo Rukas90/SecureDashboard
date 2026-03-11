@@ -1,4 +1,4 @@
-export { config } from "./app.config"
-export { database } from "./database"
-export { server } from "./server"
-export { default as env } from "./env"
+export { default as AppConfig } from "./app.config"
+export { default as Database } from "./database"
+export { default as Server } from "./server"
+export { default as Environment, type IEnvironment } from "./env"

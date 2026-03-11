@@ -1,11 +1,13 @@
-import { MfaEnrollment, User } from "@prisma/client"
-import mfaService from "./mfa.service"
+import { MfaEnrollment } from "@prisma/client"
 import speakeasy, { GeneratedSecret } from "speakeasy"
-import { config, database, env } from "@base/app"
+import { AppConfig, IEnvironment } from "@base/app"
 import { CipherGCMOptions, decryptGCM, encryptGCM } from "@shared/security"
 import QRCode from "qrcode"
 import { Result, TotpData, VoidResult } from "@project/shared"
-import { DatabaseError, DomainError } from "@shared/errors"
+import {
+  DatabaseError,
+  UnexpectFailedOperation as UnexpectedFailedOperation,
+} from "@shared/errors"
 import {
   MfaAlreadyConfiguredError,
   MfaNotFoundError,
@@ -15,195 +17,217 @@ import {
   MfaInvalidCodeError,
   MfaQRCodeGenerateError,
   MfaDecryptionError,
+  MfaEnrollmentFetchFailedError,
 } from "../error/mfa.error"
-import logger from "@shared/logger"
-import enrollmentRepository from "../repository/enrollments.repository"
+import { ILogger } from "@shared/logger"
+import { IEnrollmentRepository } from "../repository/enrollments.repository"
+import { IUnitOfWork } from "@shared/base"
+import { IMfaService } from "./mfa.service"
+import { IUserRepository } from "@features/user"
+import { IAuthService } from "@features/auth"
+import { SessionContext } from "@features/session"
 
 type TotpCredentials = {
   secret_enc: string
 }
-const EncryptionOptions: CipherGCMOptions = {
-  key: Buffer.from(env.get.TOTP_SECRET_AES_256_MASTER_KEY, "base64"),
-  algorithm: "aes-256-gcm",
-}
 
 const SETUP_EXPIRATION_MINUTES = 15
 
-const getCredentials = async (
-  user: User,
-  enrollment: MfaEnrollment,
-): Promise<{
-  credentials: TotpCredentials
-  generatedSecret: GeneratedSecret | null
-}> => {
-  if (enrollment.credentials) {
-    return {
-      credentials: JSON.parse(
-        enrollment.credentials.toString(),
-      ) as TotpCredentials,
-      generatedSecret: null,
+export class TotpService {
+  private readonly encryptionOptions: CipherGCMOptions
+
+  constructor(
+    private readonly userRepository: IUserRepository,
+    private readonly mfaService: IMfaService,
+    private readonly enrollmentRepository: IEnrollmentRepository,
+    private readonly unitOfWork: IUnitOfWork,
+    private readonly config: AppConfig,
+    private readonly logger: ILogger,
+    environment: IEnvironment,
+  ) {
+    this.encryptionOptions = {
+      key: Buffer.from(
+        environment.get.TOTP_SECRET_AES_256_MASTER_KEY,
+        "base64",
+      ),
+      algorithm: "aes-256-gcm",
     }
   }
-  const secret = generateSecret(user)
-  const encrypted = encryptGCM(secret.base32, EncryptionOptions)
+  async getTotpData(
+    userId: string,
+  ): Promise<
+    Result<
+      TotpData,
+      | MfaEnrollmentFetchFailedError
+      | MfaAlreadyConfiguredError
+      | MfaDecryptionError
+      | MfaQRCodeGenerateError
+      | DatabaseError
+      | UnexpectedFailedOperation
+    >
+  > {
+    return this.unitOfWork.run(async (tx) => {
+      const user = await Result.orThrowAsync(
+        this.userRepository.getById(userId, undefined, tx),
+      )
+      if (!user) {
+        throw new MfaEnrollmentFetchFailedError()
+      }
+      const currentEnrollment = await Result.orThrowAsync(
+        this.enrollmentRepository.findAllByUserIdAndMethod(userId, "totp", tx),
+      )
+      let enrollment: MfaEnrollment | null = currentEnrollment
+      const status = this.mfaService.getEnrollmentStatus(enrollment)
 
-  if (!encrypted.ok) {
-    logger.error(encrypted.error)
-    throw encrypted.error
-  }
-  const credentials = {
-    secret_enc: encrypted.data,
-  }
-  await updateCredentials(enrollment.id, credentials)
-
-  return {
-    credentials,
-    generatedSecret: secret,
-  }
-}
-
-const updateCredentials = async (
-  enrollmentId: string,
-  credentials: TotpCredentials,
-) => {
-  await database.client.mfaEnrollment.update({
-    where: {
-      id: enrollmentId,
-    },
-    data: {
-      credentials: JSON.stringify(credentials),
-    },
-  })
-}
-
-const decryptSecret = (
-  secretEnrypted: string,
-): Result<string, MfaDecryptionError> => {
-  const decrypted = decryptGCM(secretEnrypted, EncryptionOptions)
-  if (!decrypted.ok) {
-    return Result.error(new MfaDecryptionError())
-  }
-  return Result.success(decrypted.data)
-}
-
-const createOtpAuthUrl = (user: User, secretBase32: string) => {
-  const issuer = config().name
-  return speakeasy.otpauthURL({
-    secret: secretBase32,
-    label: issuer,
-    issuer: user.email,
-    algorithm: "sha1",
-    digits: 6,
-    period: 30,
-    encoding: "base32",
-  })
-}
-
-const generateSecret = (user: User): GeneratedSecret => {
-  return speakeasy.generateSecret({
-    name: `${config().name}: ${user.email}`,
-    length: 32,
-  })
-}
-const generateQRCodeURi = async (
-  otpAuthUrl: string,
-): Promise<string | null> => {
-  try {
-    return await QRCode.toDataURL(otpAuthUrl)
-  } catch {
-    return null
-  }
-}
-
-const totpService = {
-  getTotpData: async (
-    user: User,
-  ): Promise<Result<TotpData, DomainError | DatabaseError>> => {
-    const result = await enrollmentRepository.findAllByUserIdAndMethod(
-      user.id,
-      "totp",
-    )
-
-    if (!result.ok) {
-      return result
-    }
-    let enrollment: MfaEnrollment | null = result.data
-    const status = mfaService.getEnrollmentStatus(enrollment)
-
-    switch (status) {
-      case "CONFIGURED":
+      if (status === "CONFIGURED") {
         return Result.error(new MfaAlreadyConfiguredError())
-      case "EXPIRED":
-      case "INVALID":
+      }
+      if (status === "EXPIRED" || status === "INVALID") {
         if (enrollment) {
-          await database.client.mfaEnrollment.delete({
-            where: { id: enrollment.id },
-          })
+          await Result.orThrowAsync(
+            this.enrollmentRepository.deleteById(enrollment.id, tx),
+          )
         }
         enrollment = null
-        break
-      case "NULL":
-      case "AWAITING_VERIFICATION":
-        break
-    }
-    if (!enrollment) {
-      const newEnrollment = await enrollmentRepository.create(
-        user.id,
-        "totp",
-        SETUP_EXPIRATION_MINUTES,
+      }
+      if (!enrollment) {
+        enrollment = await Result.orThrowAsync(
+          this.enrollmentRepository.create(
+            userId,
+            "totp",
+            SETUP_EXPIRATION_MINUTES,
+            tx,
+          ),
+        )
+      }
+      const { credentials, generatedSecret } = await this.getCredentials(
+        user.email,
+        enrollment,
       )
-      if (!newEnrollment.ok) {
-        return newEnrollment
+      let secretKey: string
+
+      if (!!generatedSecret) {
+        secretKey = generatedSecret.base32
+
+        await Result.orThrowAsync(
+          this.enrollmentRepository.updateCredentials(
+            enrollment.id,
+            JSON.stringify(credentials),
+            tx,
+          ),
+        )
+      } else {
+        secretKey = Result.orThrow(this.decryptSecret(credentials.secret_enc))
       }
-      enrollment = newEnrollment.data
-    }
-    const { credentials, generatedSecret } = await getCredentials(
-      user,
-      enrollment,
-    )
-    let secretKey: string
+      const otpAuthUrl =
+        generatedSecret?.otpauth_url ??
+        this.createOtpAuthUrl(user.email, secretKey)
 
-    if (generatedSecret) {
-      secretKey = generatedSecret.base32
-    } else {
-      const decrytionResult = decryptSecret(credentials.secret_enc)
+      const qrCodeURi = await this.generateQRCodeURi(otpAuthUrl)
 
-      if (!decrytionResult.ok) {
-        return decrytionResult
+      if (!qrCodeURi) {
+        throw Result.error(new MfaQRCodeGenerateError())
       }
-      secretKey = decrytionResult.data
-    }
-    const otpAuthUrl =
-      generatedSecret?.otpauth_url ?? createOtpAuthUrl(user, secretKey)
-
-    const qrCodeURi = await generateQRCodeURi(otpAuthUrl)
-
-    if (!qrCodeURi) {
-      return Result.error(new MfaQRCodeGenerateError())
-    }
-    return Result.success({
-      qrCodeURi,
-      setupKey: secretKey,
-      expiresAt: enrollment.expires_At!,
+      const data: TotpData = {
+        qrCodeURi,
+        setupKey: secretKey,
+        expiresAt: enrollment.expires_At!,
+      }
+      return Result.success(data)
     })
-  },
-  verifyTotpCode: async (
+  }
+  async getCredentials(
+    email: string,
+    enrollment: MfaEnrollment,
+  ): Promise<{
+    credentials: TotpCredentials
+    generatedSecret: GeneratedSecret | null
+  }> {
+    if (enrollment.credentials) {
+      return {
+        credentials: JSON.parse(
+          enrollment.credentials.toString(),
+        ) as TotpCredentials,
+        generatedSecret: null,
+      }
+    }
+    const secret = this.generateSecret(email)
+    const encrypted = encryptGCM(secret.base32, this.encryptionOptions)
+
+    if (!encrypted.ok) {
+      this.logger.error(encrypted.error)
+      throw encrypted.error
+    }
+    const credentials = {
+      secret_enc: encrypted.data,
+    }
+    return {
+      credentials,
+      generatedSecret: secret,
+    }
+  }
+  private generateSecret(email: string): GeneratedSecret {
+    return speakeasy.generateSecret({
+      name: `${this.config.name}: ${email}`,
+      length: 32,
+    })
+  }
+  private decryptSecret(
+    secretEnrypted: string,
+  ): Result<string, MfaDecryptionError> {
+    const decrypted = decryptGCM(secretEnrypted, this.encryptionOptions)
+    if (!decrypted.ok) {
+      return Result.error(new MfaDecryptionError())
+    }
+    return Result.success(decrypted.data)
+  }
+  private createOtpAuthUrl(email: string, secretBase32: string) {
+    const issuer = this.config.name
+    return speakeasy.otpauthURL({
+      secret: secretBase32,
+      label: issuer,
+      issuer: email,
+      algorithm: "sha1",
+      digits: 6,
+      period: 30,
+      encoding: "base32",
+    })
+  }
+  private async generateQRCodeURi(otpAuthUrl: string): Promise<string | null> {
+    try {
+      return await QRCode.toDataURL(otpAuthUrl)
+    } catch {
+      return null
+    }
+  }
+  async revoke(userId: string, code: string) {
+    const validation = await this.verifyTotpCode(userId, code)
+    if (!validation.ok) return validation
+
+    return await this.mfaService.revokeEnrollment(userId, "totp")
+  }
+  async confirm(userId: string, code: string) {
+    const validation = await this.verifyTotpCode(userId, code)
+    if (!validation.ok) return validation
+
+    return await this.mfaService.configureEnrollment(userId, "totp")
+  }
+  async verifyTotpCode(
     userId: string,
     code: string,
     options?: { ensureConfigured?: boolean },
-  ): Promise<VoidResult<DomainError | DatabaseError>> => {
-    let enrollment = await enrollmentRepository.findAllByUserIdAndMethod(
+  ) {
+    let enrollment = await this.enrollmentRepository.findAllByUserIdAndMethod(
       userId,
       "totp",
     )
-
     if (!enrollment.ok) {
       return enrollment
     }
     if (!enrollment.data) {
       return VoidResult.error(new MfaNotFoundError())
     }
-    const status = mfaService.getEnrollmentStatus(enrollment.data)
+    const status = this.mfaService.getEnrollmentStatus(enrollment.data)
 
     switch (status) {
       case "AWAITING_VERIFICATION":
@@ -225,7 +249,7 @@ const totpService = {
       return VoidResult.error(new MfaCredentialsMissingError())
     }
     const parsed = JSON.parse(credentials.toString()) as TotpCredentials
-    const decrytionResult = decryptSecret(parsed.secret_enc)
+    const decrytionResult = this.decryptSecret(parsed.secret_enc)
 
     if (!decrytionResult.ok) {
       return decrytionResult
@@ -242,6 +266,6 @@ const totpService = {
       return VoidResult.error(new MfaInvalidCodeError())
     }
     return VoidResult.ok()
-  },
+  }
 }
-export default totpService
+export type ITotpService = Pick<TotpService, keyof TotpService>

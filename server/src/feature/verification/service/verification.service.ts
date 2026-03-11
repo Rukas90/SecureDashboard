@@ -1,4 +1,3 @@
-import { database, env } from "@base/app"
 import { Result, VoidResult } from "@project/shared"
 import {
   CipherGCMOptions,
@@ -10,241 +9,265 @@ import ms from "ms"
 import {
   VerificationDispatchFailure,
   VerificationInvalidCode,
-  VerificationNotValid,
+  VerificationFailed,
+  VerificationFailedToEstablish,
 } from "../error/verification.error"
-import {
-  DispatchContext,
-  DispatchData,
-  executeDispatch,
-} from "@shared/dispatch"
 import { Verification } from "@prisma/client"
 import { generateReadableCode, generateTokenCode } from "../util/code.util"
-import { Mailer, MailOptions } from "@shared/mailer"
-import { createVerificationLink } from "../util/link.util"
-import { Prisma } from "@prisma/client"
+import { IMailerService, MailOptions } from "@shared/mailer"
+import { IUnitOfWork } from "@shared/base"
+import {
+  CreateVerificationInput,
+  IVerificationRepository,
+} from "../repository/verification.repository"
+import { AppConfig, IEnvironment } from "@base/app"
+import { DatabaseError, DomainError } from "@shared/errors"
+import { IEventRegistry } from "../event/event.registry"
+import { EventContext } from "../event/event.context"
+import { VerificationEventData, VerificationEventJob } from "../event/event.job"
 
-type TransactionClient = Prisma.TransactionClient
-
+export type VerificationOptions = {
+  code?: VerificationCode
+}
+export type VerificationCode = {
+  length?: number
+  pattern?: string
+}
 export type VerificationMailOptions = {
   recipient: string
   subject: string
 }
-export type VerificationData<TPayload> = {
-  userId: string
-  expiresMs?: number
-  mailOptions: VerificationMailOptions
-} & DispatchData<TPayload>
 
-const DEFAULT_MANUAL_CODE_LENGTH = 6
-const DEFAULT_TOKEN_CODE_LENGTH = 32
-const DEFAULT_CODE_EXPIRATION_MS = ms("15m")
+// TODO: Switch from storing verification in the DB to Redis
 
-const EncryptionOptions: CipherGCMOptions = {
-  key: Buffer.from(env.get.PAYLOAD_SECRET_AES_256_MASTER_KEY, "hex"),
-  algorithm: "aes-256-gcm",
-}
+export const DEFAULT_MANUAL_CODE_LENGTH = 6
+export const DEFAULT_TOKEN_CODE_LENGTH = 32
 
-const verificationService = {
-  establishCodeVerification: async <TPayload>(
-    data: VerificationData<TPayload>,
-  ): Promise<Result<Verification, Error>> => {
-    return await database.client.$transaction(
-      async (client: TransactionClient) => {
-        const code = generateReadableCode(DEFAULT_MANUAL_CODE_LENGTH)
-        const verification = await establishVerification(code, data, client)
+export const DEFAULT_CODE_EXPIRATION_MS = ms("15m")
 
-        if (!verification.ok) {
-          return verification
-        }
-        const mail = await sendVerificationEmail(
-          `Verification code is: ${code}`,
-          data.mailOptions,
-        )
-        if (!mail.ok) {
-          return mail
-        }
-        return Result.success(verification.data)
-      },
+export const DEFAULT_CODE_PATTERN = "346789ACDEFGHJKLMNPQRTUVWXY"
+export const NUMERIC_CODE_PATTERN = "0123456789"
+
+export type VerificationType = "code" | "token"
+
+export class VerificationService {
+  private readonly secret: string
+  private readonly encryptionOptions: CipherGCMOptions
+  private readonly originApi: string
+
+  constructor(
+    private readonly mailerService: IMailerService,
+    private readonly verificationRepository: IVerificationRepository,
+    private readonly eventRegistry: IEventRegistry,
+    private readonly unitOfWork: IUnitOfWork,
+    environment: IEnvironment,
+    config: AppConfig,
+  ) {
+    this.secret = environment.get.VERIFICATION_LOOKUP_SECRET
+    this.encryptionOptions = {
+      key: Buffer.from(
+        environment.get.PAYLOAD_SECRET_AES_256_MASTER_KEY,
+        "hex",
+      ),
+      algorithm: "aes-256-gcm",
+    }
+    this.originApi = config.origin.api
+  }
+
+  async establishVerificationJob<TPayload>(
+    job: VerificationEventJob<TPayload>,
+  ) {
+    let func: Promise<Result<Verification, DomainError>>
+
+    switch (job.data.type) {
+      case "code":
+        func = this.establishCodeVerification(job)
+        break
+      case "token":
+        func = this.establishTokenVerification(job)
+        break
+      default:
+        return Result.error(new VerificationFailedToEstablish("Unknown type"))
+    }
+    return await func
+  }
+  private async establishCodeVerification<TPayload>(
+    job: VerificationEventJob<TPayload>,
+  ) {
+    const code = generateReadableCode(
+      job.data.options?.code?.length ?? DEFAULT_MANUAL_CODE_LENGTH,
+      job.data.options?.code?.pattern ?? DEFAULT_CODE_PATTERN,
     )
-  },
-  establishTokenVerification: async <TPayload>(
-    data: VerificationData<TPayload>,
-  ): Promise<Result<Verification, Error>> => {
-    return await database.client.$transaction(
-      async (client: TransactionClient) => {
-        const token = generateTokenCode(DEFAULT_TOKEN_CODE_LENGTH)
-        const verification = await establishVerification(token, data, client)
-
-        if (!verification.ok) {
-          return verification
-        }
-        const mail = await sendVerificationEmail(
-          createVerificationLink(token),
-          data.mailOptions,
-        )
-        if (!mail.ok) {
-          return mail
-        }
-        return Result.success(verification.data)
-      },
+    const verification = await this.createVerification(
+      code,
+      job.event,
+      job.data,
+      `Verification code is: ${code}`,
     )
-  },
-  verifyVerification: async (
+
+    if (!verification.ok) return verification
+
+    const mail = await this.sendVerificationEmail(
+      `Verification code is: ${code}`,
+      job.data.mailOptions,
+    )
+    if (!mail.ok) return mail
+
+    return Result.success(verification.data)
+  }
+  private async establishTokenVerification<TPayload>(
+    job: VerificationEventJob<TPayload>,
+  ) {
+    const token = generateTokenCode(
+      job.data.options?.code?.length ?? DEFAULT_TOKEN_CODE_LENGTH,
+    )
+    const verification = await this.createVerification(
+      token,
+      job.event,
+      job.data,
+      this.createVerificationLink(token),
+    )
+
+    if (!verification.ok) return verification
+
+    return Result.success(verification.data)
+  }
+  private async createVerification<TPayload>(
+    code: string,
+    event: string,
+    data: VerificationEventData<TPayload>,
+    mailMessage: string,
+  ) {
+    return this.unitOfWork.run(async (tx) => {
+      let payloadEncypted: string | null = null
+
+      if (data.payload) {
+        payloadEncypted = Result.orThrow(
+          encryptGCM(JSON.stringify(data.payload), this.encryptionOptions),
+        )
+      }
+      const codeHash = await hashing.argon2.hash(code)
+      const lookupHash = await this.createLookupHash(code)
+      const expiresAt = new Date(
+        Date.now() + (data.expiresMs ?? DEFAULT_CODE_EXPIRATION_MS),
+      )
+      const input: CreateVerificationInput = {
+        userId: data.userId,
+        eventType: event,
+        encryptedPayload: payloadEncypted,
+        codeHash,
+        lookupHash,
+        expiresAt,
+      }
+      const verification = await Result.orThrowAsync(
+        this.verificationRepository.create(input, tx),
+      )
+      await Result.orThrowAsync(
+        this.sendVerificationEmail(mailMessage, data.mailOptions),
+      )
+      return Result.success(verification)
+    })
+  }
+
+  private async sendVerificationEmail(
+    text: string,
+    options: VerificationMailOptions,
+  ) {
+    const mailOptions = {
+      recipient: options.recipient,
+      subject: options.subject,
+      text,
+      html: `<p>${text}</p>`,
+    } satisfies MailOptions
+    return await this.mailerService.send(mailOptions)
+  }
+
+  async verifyVerification(
     code: string,
   ): Promise<
     VoidResult<
-      | VerificationNotValid
       | VerificationInvalidCode
       | VerificationDispatchFailure
+      | VerificationFailed
+      | DatabaseError
     >
-  > => {
-    const verification = await getVerification(code)
+  > {
+    return this.unitOfWork.run(async (tx) => {
+      const lookupHash = await this.createLookupHash(code)
 
-    if (!verification) {
-      return VoidResult.error(new VerificationNotValid())
-    }
-    if (verification.expires_at < new Date()) {
-      await removeVerification(verification.id)
-      return VoidResult.error(new VerificationNotValid())
-    }
-    const validation = await validateCode(verification.code_hash, code)
-
-    if (!validation.ok) {
-      return VoidResult.error(validation.error)
-    }
-    try {
-      const dispatch = await handleDispatch(verification.user_id, verification)
-
-      if (!dispatch.ok) {
-        return dispatch
+      const verification = await Result.valueAsync(
+        this.verificationRepository.getByLookupHash(lookupHash, tx),
+      )
+      if (!verification) {
+        return VoidResult.error(new VerificationFailed())
       }
+      if (verification.expires_at < new Date()) {
+        await Result.orThrowAsync(
+          this.verificationRepository.deleteById(verification.id, tx),
+        )
+        return VoidResult.error(new VerificationFailed())
+      }
+      await Result.orThrowAsync(this.validateCode(verification.code_hash, code))
+      await Result.orThrowAsync(
+        this.verificationRepository.deleteById(verification.id, tx),
+      )
+      await Result.orThrowAsync(
+        this.handleEvent(verification.user_id, verification),
+      )
       return VoidResult.ok()
-    } finally {
-      await removeVerification(verification.id)
+    })
+  }
+  private async validateCode(
+    codeHash: string,
+    code: string,
+  ): Promise<VoidResult<VerificationInvalidCode>> {
+    const isValid = await hashing.argon2.compare(code, codeHash)
+    if (!isValid) {
+      return VoidResult.error(new VerificationInvalidCode())
     }
-  },
-}
+    return VoidResult.ok()
+  }
+  private async handleEvent(
+    userId: string,
+    verification: Verification,
+  ): Promise<VoidResult<VerificationDispatchFailure>> {
+    let payload = undefined
 
-const establishVerification = async <TPayload>(
-  code: string,
-  data: VerificationData<TPayload>,
-  client?: TransactionClient,
-): Promise<Result<Verification, Error>> => {
-  let payloadEncypted: string | null = null
-
-  if (data.dispatchPayload) {
-    const encryption = encryptGCM(
-      JSON.stringify(data.dispatchPayload),
-      EncryptionOptions,
-    )
-    if (encryption.ok) {
-      payloadEncypted = encryption.data
-    } else {
-      return Result.error(encryption.error)
+    if (!!verification.payload_encrypted) {
+      const decryption = decryptGCM(
+        verification.payload_encrypted,
+        this.encryptionOptions,
+      )
+      if (decryption.ok) {
+        payload = JSON.parse(decryption.data)
+      } else {
+        return VoidResult.error(new VerificationDispatchFailure())
+      }
     }
-  }
-  const verification = await createVerification(
-    data.userId,
-    data.dispatchName,
-    payloadEncypted,
-    code,
-    data.expiresMs ?? DEFAULT_CODE_EXPIRATION_MS,
-    client,
-  )
-  return Result.success(verification)
-}
+    const event = this.eventRegistry.get(verification.event_type)
 
-const sendVerificationEmail = async (
-  text: string,
-  options: VerificationMailOptions,
-) => {
-  const mailOptions = {
-    recipient: options.recipient,
-    subject: options.subject,
-    text,
-    html: `<p>${text}</p>`,
-  } satisfies MailOptions
-  return await Mailer.send(mailOptions)
-}
-const createVerification = async (
-  userId: string,
-  dispatchType: string,
-  encryptedPayload: string | null,
-  code: string,
-  expiresMs: number,
-  client?: TransactionClient,
-) => {
-  const codeHash = await hashing.argon2.hash(code)
-  const lookupHash = await createLookupHash(code)
-  const expiryDate = new Date(Date.now() + expiresMs)
-
-  return await (client ?? database.client).verification.create({
-    data: {
-      user_id: userId,
-      dispatch_type: dispatchType,
-      payload_encrypted: encryptedPayload,
-      code_hash: codeHash,
-      lookup_hash: lookupHash,
-      expires_at: expiryDate,
-    },
-  })
-}
-
-const validateCode = async (
-  codeHash: string,
-  code: string,
-): Promise<VoidResult<VerificationInvalidCode>> => {
-  const isValid = await hashing.argon2.compare(code, codeHash)
-  if (!isValid) {
-    return VoidResult.error(new VerificationInvalidCode())
-  }
-  return VoidResult.ok()
-}
-
-const handleDispatch = async (
-  userId: string,
-  verification: Verification,
-): Promise<VoidResult<VerificationDispatchFailure>> => {
-  const context: DispatchContext = {
-    userId,
-    verificationId: verification.id,
-    createdAt: verification.created_at,
-  }
-  let payload = undefined
-
-  if (!!verification.payload_encrypted) {
-    const decryption = decryptGCM(
-      verification.payload_encrypted,
-      EncryptionOptions,
-    )
-    if (decryption.ok) {
-      payload = JSON.parse(decryption.data)
-    } else {
-      return VoidResult.error(new VerificationDispatchFailure())
+    if (!!event) {
+      const context: EventContext<unknown> = {
+        userId,
+        verificationId: verification.id,
+        createdAt: verification.created_at,
+        payload,
+      }
+      await event.resolve(context)
     }
+    return VoidResult.ok()
   }
-  await executeDispatch(verification.dispatch_type, context, payload)
-  return VoidResult.ok()
-}
+  private async createLookupHash(code: string) {
+    return await hashing.hmac.hash(code, this.secret)
+  }
+  private createVerificationLink(token: string): string {
+    const url = new URL("/v1/verify/token", this.originApi)
+    url.searchParams.set("token", token)
 
-const getVerification = async (code: string) => {
-  const lookupHash = await createLookupHash(code)
-  return await database.client.verification.findUnique({
-    where: {
-      lookup_hash: lookupHash,
-    },
-  })
+    return url.toString()
+  }
 }
-
-const createLookupHash = async (code: string) => {
-  return await hashing.hmac.hash(code, env.get.VERIFICATION_LOOKUP_SECRET)
-}
-const removeVerification = async (id: string) => {
-  await database.client.verification.delete({
-    where: {
-      id,
-    },
-  })
-}
-
-export default verificationService
+export type IVerificationService = Pick<
+  VerificationService,
+  "establishVerificationJob" | "verifyVerification"
+>

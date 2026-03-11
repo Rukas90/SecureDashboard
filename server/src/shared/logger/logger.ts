@@ -1,4 +1,4 @@
-import { env } from "@base/app"
+import { IEnvironment } from "@base/app"
 import chalk from "chalk"
 
 const LOG_LEVELS = {
@@ -11,45 +11,48 @@ const LOG_LEVELS = {
 
 export type LogLevel = keyof typeof LOG_LEVELS
 
-const logger = {
-  debug: (...data: any[]) => {
-    if (canLog("debug")) {
+export class Logger {
+  private logLevel: LogLevel
+
+  constructor(environment: IEnvironment) {
+    this.logLevel = environment.getOr("LOG_LEVEL", "info") as LogLevel
+  }
+
+  debug(...data: any[]) {
+    if (this.canLog("debug")) {
       console.log(chalk.gray("[DEBUG]"), ...data)
     }
-  },
-  info: (...data: any[]) => {
-    if (canLog("info")) {
+  }
+  info(...data: any[]) {
+    if (this.canLog("info")) {
       console.log(chalk.blue("[INFO]"), ...data)
     }
-  },
-
-  warn: (...data: any[]) => {
-    if (canLog("warn")) {
+  }
+  warn(...data: any[]) {
+    if (this.canLog("warn")) {
       console.warn(chalk.yellow("[WARN]"), ...data)
     }
-  },
-
-  error: (...data: any[]) => {
-    if (canLog("error")) {
+  }
+  error(...data: any[]) {
+    if (this.canLog("error")) {
       console.error(chalk.red("[ERROR]"), ...data)
     }
-  },
-  success: (...data: any[]) => {
-    if (canLog("info")) {
+  }
+  success(...data: any[]) {
+    if (this.canLog("info")) {
       console.log(chalk.green("[SUCCESS]"), ...data)
     }
-  },
-  fail: (...data: any[]) => {
-    if (canLog("error")) {
+  }
+  fail(...data: any[]) {
+    if (this.canLog("error")) {
       console.error(chalk.red("[FAIL]"), ...data)
     }
-  },
+  }
+  private canLog(level: LogLevel): boolean {
+    return LOG_LEVELS[level] >= LOG_LEVELS[this.logLevel]
+  }
 }
-
-const getLogLevel = (): LogLevel => env.getOr("LOG_LEVEL", "info") as LogLevel
-
-const canLog = (level: LogLevel): boolean => {
-  return LOG_LEVELS[level] >= LOG_LEVELS[getLogLevel()]
-}
-
-export default logger
+export type ILogger = Pick<
+  Logger,
+  "debug" | "info" | "warn" | "error" | "success" | "fail"
+>

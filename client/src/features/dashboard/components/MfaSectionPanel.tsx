@@ -3,6 +3,7 @@ import SettingsPanel from "./SettingsPanel"
 import SettingsSection from "./SettingsSection"
 import MfaSectionHeader from "./MfaSectionHeader"
 import { useMfaEnrollments } from "@features/mfa"
+import RecoveryCodes from "./RecoveryCodes"
 
 const MfaSectionPanel = () => {
   const { isMfaActive, isLoading } = useMfaEnrollments()
@@ -15,6 +16,11 @@ const MfaSectionPanel = () => {
       >
         <AuthAppSection />
       </SettingsSection>
+      {isMfaActive && (
+        <SettingsSection label="Recovery options">
+          <RecoveryCodes />
+        </SettingsSection>
+      )}
     </SettingsPanel>
   )
 }

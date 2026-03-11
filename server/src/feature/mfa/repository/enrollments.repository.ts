@@ -1,35 +1,53 @@
-import { database } from "@base/app"
-import { DatabaseError } from "@shared/errors"
-import { MfaEnrollment } from "@prisma/client"
-import { MfaMethod, Result } from "@project/shared"
-import logger from "@base/shared/logger"
+import { MfaMethod } from "@project/shared"
+import { BaseRepository, TransactionClient } from "@shared/base"
 
-const enrollmentRepository = {
-  findAllByUserId: async (
-    userId: string,
-  ): Promise<Result<MfaEnrollment[], DatabaseError>> => {
-    try {
-      return Result.success(
-        await database.client.mfaEnrollment.findMany({
+export class EnrollmentRepository extends BaseRepository {
+  async findAllByUserId(userId: string, tx?: TransactionClient) {
+    return this.query(
+      (client) =>
+        client.mfaEnrollment.findMany({
           where: {
             user_id: userId,
           },
         }),
-      )
-    } catch (error) {
-      logger.error("Failed to find all enrollments by user id.", error)
-      return Result.error(
-        new DatabaseError("Failed to find all enrollments by user id."),
-      )
-    }
-  },
-  findAllByUserIdAndMethod: async (
+      tx,
+      "Failed to find enrollments by user id.",
+    )
+  }
+  async findAllConfiguredByUserId(userId: string, tx?: TransactionClient) {
+    return this.query(
+      (client) =>
+        client.mfaEnrollment.findMany({
+          where: {
+            user_id: userId,
+            configured: true,
+          },
+        }),
+      tx,
+      "Failed to find configured enrollments by user id.",
+    )
+  }
+  async countConfiguredByUserId(userId: string, tx?: TransactionClient) {
+    return this.query(
+      (client) =>
+        client.mfaEnrollment.count({
+          where: {
+            user_id: userId,
+            configured: true,
+          },
+        }),
+      tx,
+      "Failed to get configured enrollments count by user id.",
+    )
+  }
+  async findAllByUserIdAndMethod(
     userId: string,
     method: MfaMethod,
-  ): Promise<Result<MfaEnrollment | null, DatabaseError>> => {
-    try {
-      return Result.success(
-        await database.client.mfaEnrollment.findUnique({
+    tx?: TransactionClient,
+  ) {
+    return this.query(
+      (client) =>
+        client.mfaEnrollment.findUnique({
           where: {
             user_id_method: {
               user_id: userId,
@@ -37,48 +55,41 @@ const enrollmentRepository = {
             },
           },
         }),
-      )
-    } catch (error) {
-      logger.error("Failed to find the method enrollment.", error)
-      return Result.error(
-        new DatabaseError("Failed to find the method enrollment."),
-      )
-    }
-  },
-  markMethodAsConfiguredByUserId: async (
+      tx,
+      "Failed to find method enrollments by user id.",
+    )
+  }
+  async markMethodAsConfiguredByUserId(
     userId: string,
     method: MfaMethod,
-  ): Promise<Result<{ count: number }, DatabaseError>> => {
-    try {
-      const payload = await database.client.mfaEnrollment.updateMany({
-        where: {
-          user_id: userId,
-          method: method,
-        },
-        data: {
-          configured: true,
-          expires_At: undefined,
-        },
-      })
-      return Result.success({
-        count: payload.count,
-      })
-    } catch (error) {
-      logger.error("Failed to configure enrollment method by user id.", error)
-      return Result.error(
-        new DatabaseError("Failed to configure enrollment method by user id."),
-      )
-    }
-  },
-  create: async (
+    tx?: TransactionClient,
+  ) {
+    return this.query(
+      (client) =>
+        client.mfaEnrollment.updateMany({
+          where: {
+            user_id: userId,
+            method: method,
+          },
+          data: {
+            configured: true,
+            expires_At: undefined,
+          },
+        }),
+      tx,
+      "Failed to configure enrollment method by user id.",
+    )
+  }
+  async create(
     userId: string,
     method: MfaMethod,
     expMin: number,
-  ): Promise<Result<MfaEnrollment, DatabaseError>> => {
-    try {
-      const expiration = new Date(Date.now() + expMin * 60 * 1000)
-      return Result.success(
-        await database.client.mfaEnrollment.upsert({
+    tx?: TransactionClient,
+  ) {
+    const expiration = new Date(Date.now() + expMin * 60 * 1000)
+    return this.query(
+      (client) =>
+        client.mfaEnrollment.upsert({
           where: {
             user_id_method: {
               user_id: userId,
@@ -97,35 +108,72 @@ const enrollmentRepository = {
             expires_At: expiration,
           },
         }),
-      )
-    } catch (error) {
-      logger.error("Failed to create new enrollment method.", error)
-      return Result.error(
-        new DatabaseError("Failed to create new enrollment method."),
-      )
-    }
-  },
-  deleteByUserIdAndMethod: async (
+      tx,
+      "Failed to create new enrollment method.",
+    )
+  }
+  async deleteByUserIdAndMethod(
     userId: string,
     method: MfaMethod,
-  ): Promise<Result<{ count: number }, DatabaseError>> => {
-    try {
-      const payload = await database.client.mfaEnrollment.deleteMany({
-        where: {
-          user_id: userId,
-          method: method,
-        },
-      })
-      return Result.success({
-        count: payload.count,
-      })
-    } catch (error) {
-      logger.error("Failed to delete the enrollment method.", error)
-      return Result.error(
-        new DatabaseError("Failed to delete the enrollment method."),
-      )
-    }
-  },
+    tx?: TransactionClient,
+  ) {
+    return this.query(
+      (client) =>
+        client.mfaEnrollment.deleteMany({
+          where: {
+            user_id: userId,
+            method: method,
+          },
+        }),
+      tx,
+      "Failed to delete the enrollment method.",
+    )
+  }
+  async deleteById(enrollmentId: string, tx?: TransactionClient) {
+    return this.query(
+      (client) =>
+        client.mfaEnrollment.deleteMany({
+          where: {
+            id: enrollmentId,
+          },
+        }),
+      tx,
+      "Failed to delete the enrollment by enrollment id.",
+    )
+  }
+  async countByUserId(userId: string, tx?: TransactionClient) {
+    return this.query(
+      (client) =>
+        client.mfaEnrollment.count({
+          where: {
+            user_id: userId,
+          },
+        }),
+      tx,
+      "Failed to get the enrollments count by user id.",
+    )
+  }
+  async updateCredentials(
+    enrollmentId: string,
+    credentials: string,
+    tx?: TransactionClient,
+  ) {
+    return this.query(
+      (client) =>
+        client.mfaEnrollment.update({
+          where: {
+            id: enrollmentId,
+          },
+          data: {
+            credentials,
+          },
+        }),
+      tx,
+      "Failed to update the enrollment credentials.",
+    )
+  }
 }
-
-export default enrollmentRepository
+export type IEnrollmentRepository = Pick<
+  EnrollmentRepository,
+  keyof EnrollmentRepository
+>
