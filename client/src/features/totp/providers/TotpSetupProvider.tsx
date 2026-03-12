@@ -14,10 +14,11 @@ const TotpSetupProvider = ({
 }: Pick<React.ComponentProps<"div">, "children">) => {
   const navigate = useNavigate()
 
-  // Maybe convert to useMutation?
+  // TODO: useMutation
 
   const [data, setData] = useState<TotpData | null>(null)
   const [initialized, setInitialized] = useState<boolean>(false)
+  const [isPending, setPending] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
   const initStarted = useRef(false)
 
@@ -46,6 +47,8 @@ const TotpSetupProvider = ({
   const confirmCode = async (
     code: string,
   ): Promise<ApiResult<ConfirmEnrollmentResponse>> => {
+    setPending(true)
+
     const res = await TotpService.confirmSetup({
       code,
     })
@@ -54,6 +57,7 @@ const TotpSetupProvider = ({
     if (!res.ok) {
       setError(res.error.detail)
     }
+    setPending(false)
     return res
   }
 
@@ -63,8 +67,10 @@ const TotpSetupProvider = ({
         data,
         confirmCode,
         error,
+        clearError: () => setError(null),
         requiredCodeLength: REQUIRED_CODE_LENGTH,
-        isLoading: !initialized,
+        isPending,
+        initialized,
       }}
     >
       {children}

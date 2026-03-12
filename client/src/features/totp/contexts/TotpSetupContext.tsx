@@ -6,8 +6,10 @@ export interface TotpSetupContextData {
   data: TotpData | null
   confirmCode: (code: string) => Promise<ApiResult<ConfirmEnrollmentResponse>>
   error: string | null
+  clearError: () => void
   requiredCodeLength: number
-  isLoading: boolean
+  isPending: boolean
+  initialized: boolean
 }
 export const TotpSetupContext = createContext<TotpSetupContextData | undefined>(
   undefined,

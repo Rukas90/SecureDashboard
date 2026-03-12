@@ -1,4 +1,4 @@
-import { CodeField, PlainText, SubmitButton } from "@features/shared"
+import { InputField, PlainText, SubmitButton } from "@features/shared"
 import { useRef, type FormEvent } from "react"
 import TotpService from "../services/TotpService"
 import { totpCodeSchema } from "@project/shared"
@@ -6,6 +6,7 @@ import { useOutletContext } from "react-router-dom"
 import type { MfaOutletContext } from "../routes/MfaAuthView"
 import { useAuthContext } from "@src/features/auth"
 import { useTranslation } from "react-i18next"
+import { NUMERIC_INPUT_PATTERN } from "@src/lib"
 
 const TotpLogin = () => {
   const { t } = useTranslation()
@@ -40,10 +41,16 @@ const TotpLogin = () => {
       onSubmit={handleVerification}
     >
       <PlainText className="text-center">{t("TOTP_MFA_NOTE")}</PlainText>
-      <CodeField
+      <InputField
         id="verify_code"
         name="code"
-        onCompleted={() => formRef.current?.requestSubmit()}
+        variant="mini"
+        extendWidth
+        placeholder="XXXXXX"
+        colors="lighter"
+        centerText
+        expandable={false}
+        pattern={NUMERIC_INPUT_PATTERN}
       />
       <SubmitButton type="submit" text={t("VERIFY")} extendWidth />
     </form>

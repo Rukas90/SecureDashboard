@@ -57,6 +57,19 @@ const InputVariants = {
     }
   }
 >
+type InputColorType = "default" | "lighter"
+interface InputColors {
+  bg: string
+}
+
+const InputColor: Record<InputColorType, InputColors> = {
+  default: {
+    bg: "bg-stone-950 hover:bg-stone-900",
+  },
+  lighter: {
+    bg: "bg-stone-900 hover:bg-stone-800",
+  },
+}
 
 interface Props extends Pick<React.ComponentProps<"div">, "id" | "className"> {
   name?: string | undefined
@@ -75,6 +88,8 @@ interface Props extends Pick<React.ComponentProps<"div">, "id" | "className"> {
   pattern?: string
   required?: boolean
   readonly?: boolean
+  colors?: InputColorType
+  centerText?: boolean
 }
 const InputField = ({
   id,
@@ -95,6 +110,8 @@ const InputField = ({
   pattern,
   required,
   readonly,
+  colors = "default",
+  centerText = false,
 }: Props) => {
   const [text, setText] = useState(value || "")
   const [hidden, setHidden] = useState(hideable && isHidden)
@@ -115,7 +132,8 @@ const InputField = ({
     <div
       className={clsx(
         "relative px-3 py-2 rounded-sm flex items-center transition-[background-color,height]",
-        "bg-stone-950 hover:bg-stone-900 focus:border focus:border-stone-300",
+        "focus:border focus:border-stone-300",
+        InputColor[colors].bg,
         config.container.base,
         expand ? config.container.expanded : config.container.default,
         indicateError && "border border-red-900",
@@ -126,7 +144,9 @@ const InputField = ({
         <label
           htmlFor={id}
           className={clsx(
-            "absolute pointer-events-none transition-all left-3 xs:text-sm! text-xs! xs:font-normal font-medium",
+            "absolute pointer-events-none transition-all xs:text-sm! text-xs! xs:font-normal font-medium",
+            centerText ? "left-1/2 -translate-x-1/2" : "left-3",
+            centerText && hideable && "pr-5",
             expand ? config.label.expanded : config.label.default,
             expand
               ? "text-stone-500 top-1.5 translate-y-0"
@@ -146,6 +166,7 @@ const InputField = ({
         className={clsx(
           config.input.base,
           "bg-transparent border-0 outline-0 h-auto text-stone-200 p-0 m-0",
+          centerText && "text-center",
           expand && config.input.expanded,
           className,
           extendWidth && "w-full",
