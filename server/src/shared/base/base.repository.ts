@@ -16,6 +16,7 @@ export abstract class BaseRepository {
     try {
       return Result.success(await fn(tx ?? this.client))
     } catch (error) {
+      console.error(error)
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === "P2002"
