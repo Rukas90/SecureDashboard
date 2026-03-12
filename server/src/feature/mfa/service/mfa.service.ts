@@ -6,7 +6,10 @@ import {
   Result,
   VoidResult,
 } from "@project/shared"
-import { IRecoveryRepository } from "../repository/recovery.repository"
+import {
+  CreateRecoveryCodeInput,
+  IRecoveryRepository,
+} from "../repository/recovery.repository"
 import { MfaNotFoundError } from "../error/mfa.error"
 import { IUnitOfWork } from "@shared/base"
 import { IRecoveryService } from "./recovery.service"
@@ -28,6 +31,13 @@ export class MfaService {
   ) {}
 
   async configureEnrollment(userId: string, method: MfaMethod) {
+    const hasBackupCodes = await this.recoveryRepository.existsByUserId(userId)
+    if (!hasBackupCodes.ok) return hasBackupCodes
+
+    const newCodes = hasBackupCodes.data
+      ? null
+      : await this.prepareRecoveryCodes()
+
     return this.unitOfWork.run(async (tx) => {
       await Result.orThrowAsync(
         this.enrollmentRepository.markMethodAsConfiguredByUserId(
@@ -36,21 +46,21 @@ export class MfaService {
           tx,
         ),
       )
-      const hasBackupCodes = await Result.orThrowAsync(
-        this.recoveryRepository.existsByUserId(userId, tx),
-      )
-      if (hasBackupCodes) {
+      if (!newCodes) {
         // As user already has recovery backup codes, no new codes were created, so nothing to return.
         return Result.success(null)
       }
-      const codes = this.recoveryService.generateBackupCodes()
-      const inputs = await this.recoveryService.mapToCreateCodeInputs(codes)
-
       await Result.orThrowAsync(
-        this.recoveryRepository.createMany(userId, inputs, tx),
+        this.recoveryRepository.createMany(userId, newCodes.inputs, tx),
       )
-      return Result.success(codes)
+      return Result.success(newCodes.codes)
     }, "EnrollmentConfigure")
+  }
+  private async prepareRecoveryCodes() {
+    const codes = this.recoveryService.generateBackupCodes()
+    const inputs = await this.recoveryService.mapToCreateCodeInputs(codes)
+
+    return { codes, inputs }
   }
   async revokeEnrollment(
     userId: string,

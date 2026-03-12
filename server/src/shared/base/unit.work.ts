@@ -17,6 +17,9 @@ export class UnitOfWork implements IUnitOfWork {
     fn: (tx: TransactionClient) => Promise<Result<T, E>>,
     operation?: string,
   ): Promise<Result<T, E | UnexpectFailedOperation>> {
-    return wrap(async () => this.client.$transaction(fn), operation)
+    return wrap(
+      async () => this.client.$transaction(fn, { timeout: 30000 }),
+      operation,
+    )
   }
 }
